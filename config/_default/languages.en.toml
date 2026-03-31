@@ -1,0 +1,24 @@
+languageCode = "en"
+languageName = "English"
+weight = 1
+title = "Leorium"
+
+[params]
+  displayName = "EN"
+  isoCode = "en"
+  dateFormat = "January 2, 2006"
+  rtl = false
+
+  description = "OS development, RISC-V, and systems programming"
+
+[params.author]
+  name = "Leorium"
+  email = "contact@leorium.com"
+  image = "img/author.png"
+  headline = "Learning by building"
+  bio = "CS student at NCKU"
+  links = [                                                                                                                  
+    { github = "https://github.com/LeoriumDev" },                                                                            
+    { youtube = "https://youtube.com/@leorium" },                                                                       
+    { email = "mailto:contact@leorium.com" },                                                                                
+  ]

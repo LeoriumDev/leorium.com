@@ -1,0 +1,16 @@
+[goldmark.renderer]
+  unsafe = true
+
+[goldmark.extensions.passthrough]
+  enable = true
+
+[goldmark.extensions.passthrough.delimiters]
+  block = [["\\[", "\\]"], ["$$", "$$"]]
+  inline = [["\\(", "\\)"], ["$", "$"]]
+
+[highlight]
+  noClasses = false
+
+[tableOfContents]
+  startLevel = 2
+  endLevel = 4
