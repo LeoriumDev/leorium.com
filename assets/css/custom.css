@@ -1,0 +1,45 @@
+article figure {
+  text-align: center;
+}
+
+article a {
+  color: #8FB4FF;
+}
+
+article a:hover {
+  color: #B3CCFF;
+}
+
+article figure figcaption {
+  text-align: center !important;
+  font-size: 0.9em;
+  color: var(--color-neutral-400);
+  margin-top: 0.75rem;
+}
+
+/* Series box — subtle card instead of widget */
+.series-nav {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: none;
+}
+
+.series-nav summary {
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding: 0.9rem 1rem;
+}
+
+.series-nav hr {
+  display: none;
+}
+
+.series-nav ul {
+  margin-top: 0.25rem;
+  padding: 0 1rem 1rem 1.25rem;
+}
+
+.series-nav li {
+  color: rgba(255, 255, 255, 0.78);
+}

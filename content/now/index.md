@@ -8,4 +8,4 @@ showAuthor: false
 
 Updated April 2026.
 
-- Building [DuoOS](https://github.com/LeoriumDev/duo-os), a bare-metal RISC-V OS on [Milk-V Duo](https://milkv.io/duo)
+- Building [DuoOS](/projects/duo-os/), a minimal bare-metal RISC-V OS built from scratch for the Milk-V Duo.
