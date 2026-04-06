@@ -29,22 +29,29 @@ DuoOS is a personal systems project focused on learning operating systems from f
 
 ## Current Status
 
-DuoOS is currently in active development.
+DuoOS is being rewritten from scratch (third attempt) with full documentation.
 
-## Implemented
+## Implemented (previous iterations)
 
-- Early project setup
-- Initial bootstrapping
-- Basic bring-up work
+- Bootstrapping (entry.S, linker script, FIT image, U-Boot boot)
+- UART I/O via SBI ecalls
+- printf with variadic args (%d, %x, %s, %c, %p)
+- Interactive shell with tokenizer and command dispatch
+- LED control via GPIO MMIO
+- Boot timer (rdtime, 25 MHz)
+- Watchdog timer reboot
+- Trap handler (scause/sepc/stval diagnostics)
+- Timer interrupts
 
 ## Planned
 
-- UART output
-- Trap and interrupt handling
-- Memory management
-- Task scheduling
-- Device support
-- Filesystem exploration
+- Virtual memory (Sv39 page tables)
+- Process scheduling
+- User mode + syscalls
+- fork/exec/wait/exit
+- FAT32 filesystem
+- ELF loader
+- Unix pipes
 
 ## Writing
 
