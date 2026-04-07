@@ -9,7 +9,7 @@ series: ["DuoOS"]
 series_order: 0
 slug: "introduction"
 showTableOfContents: true
-math: true
+math: false
 ---
 
 ## The Spark
