@@ -18,7 +18,7 @@ math: false
 >
 > — [Virgil](https://en.wikipedia.org/wiki/Fortune_favours_the_bold)
 
-The story of DuoOS begins at [MOPCON 2025](https://mopcon.org/2025/). My junior, Brain Duan, led the scheduling team, and I was part of it. He knew [Alan Jian](https://github.com/alanjian85) from NYCU, who had previously studied at Wu-Ling Senior High School (WLSH) and was already known as an absolute beast in low-level systems. I heard they were planning to build an operating system from scratch, so I wanted Brain to introduce me. But he was too shy and thought I was being kind of weird about it, so I messaged Alan directly on Discord, introduced myself, and somehow got invited into [Libresys](https://www.libresys.net) (formerly NexOSS).
+The story of DuoOS begins at [MOPCON 2025](https://mopcon.org/2025/). My junior, Brian Duan, led the scheduling team, and I was part of it. He knew [Alan Jian](https://github.com/alanjian85) from NYCU, who had previously studied at Wu-Ling Senior High School (WLSH) and was already known as an absolute beast in low-level systems. I heard they were planning to build an operating system from scratch, so I wanted Brian to introduce me. But he was too shy and thought I was being kind of weird about it, so I messaged Alan directly on Discord, introduced myself, and somehow got invited into [Libresys](https://www.libresys.net) (formerly NexOSS).
 
 Right after MOPCON 2025, the semester was coming to an end. During winter break, Alan invited us to a meetup in Taipei called Libresys Party, and that was when he gave me this [Milk-V Duo](https://milkv.io/duo) board. The board definitely collected some dust for a while, but much later, I suddenly had a thought: what if I tried building my own operating system on this little thing?
 
