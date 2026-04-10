@@ -17,6 +17,15 @@ enableStructuredBreadcrumbs = true
 smartTOC = true
 smartTOCHideUnfocusedChildren = true
 
+[firebase]
+  apiKey = "AIzaSyAM9FxWgUA01vArRvgM5Ta2U087ADaqX5k"
+  authDomain = "leorium-com.firebaseapp.com"
+  projectId = "leorium-com"
+  storageBucket = "leorium-com.firebasestorage.app"
+  messagingSenderId = "633731080737"
+  appId = "1:633731080737:web:26b8c455dfe1bec98ab960"
+  measurementId = "G-YX346X3157"
+
 [header]
   layout = "basic"
 
@@ -49,6 +58,8 @@ smartTOCHideUnfocusedChildren = true
   showTableOfContents = true
   showTaxonomies = true
   showWordCount = false
+  showViews = true
+  showLikes = true
   showComments = false
   showRelatedContent = true
   relatedContentLimit = 3
