@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MANTRA — architecture &amp; run</title>
+<style>
+:root{
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,system-ui,sans-serif;
+  --pagebg:#faf9f5; --bg:#ffffff; --surface:#f3f1ea;
+  --ink:#1f1f1d; --ink2:#5f5e5a; --ink3:#9a988f;
+  --line:rgba(0,0,0,.14); --line2:rgba(0,0,0,.26);
+  --ok:#0E7C66;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --pagebg:#161513; --bg:#201f1c; --surface:#2c2b26;
+    --ink:#e9e7e0; --ink2:#b4b2a9; --ink3:#7f7e77;
+    --line:rgba(255,255,255,.16); --line2:rgba(255,255,255,.3);
+    --ok:#2ea88a;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:var(--font); background:var(--pagebg); color:var(--ink); padding:16px; max-width:1120px; margin:0 auto}
+header h1{font-size:20px; margin:0; font-weight:600; letter-spacing:.3px}
+header p{font-size:13px; color:var(--ink2); margin:4px 0 0}
+.controls{display:flex; gap:8px; align-items:center; margin:12px 0}
+.controls button{font-size:13px; padding:8px 14px; border:.5px solid var(--line2); background:var(--bg); color:var(--ink); border-radius:8px; cursor:pointer}
+.controls button:hover:not(:disabled){background:var(--surface)}
+.controls button:active:not(:disabled){transform:scale(.98)}
+.controls button:disabled{opacity:.4; cursor:default}
+.counter{margin-left:auto; font-size:13px; color:var(--ink2)}
+.stage{display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start}
+.diagram-col{flex:2 1 470px; min-width:300px; border:.5px solid var(--line); border-radius:12px; padding:8px; background:var(--bg)}
+.panel{flex:1 1 290px; min-width:270px}
+#diagram{width:100%; height:auto; display:block}
+#diagram text{font-family:var(--font)}
+.nt{fill:var(--ink); font-size:14px; font-weight:600}
+.ns{fill:var(--ink2); font-size:12px}
+.snt{fill:var(--ink); font-size:13px; font-weight:600}
+.frame{fill:none; stroke:var(--line); stroke-width:1; stroke-dasharray:6 5}
+.frametitle{fill:var(--ink2); font-size:12px; font-weight:600}
+.node rect{fill:var(--surface); stroke:var(--line2); stroke-width:1.2}
+.loop line{stroke:var(--ink3); stroke-width:1.4}
+.edge path{fill:none; stroke:var(--ink2); stroke-width:1.6}
+.et{fill:var(--ink2); font-size:11px; font-weight:600}
+.tog{transition:opacity .18s ease}
+.dim{opacity:.3}
+.node.on rect{stroke:var(--accent); stroke-width:2.5; filter:drop-shadow(0 0 6px var(--accent))}
+.node.on .nt,.node.on .snt{fill:var(--accent)}
+.edge.on path{stroke:var(--accent); stroke-width:3; stroke-dasharray:7 5; animation:march .7s linear infinite}
+.edge.on .et{fill:var(--accent)}
+@keyframes march{to{stroke-dashoffset:-24}}
+@media (prefers-reduced-motion: reduce){.edge.on path{animation:none}}
+.stephead{font-size:12px; color:var(--ink2); text-transform:uppercase; letter-spacing:.6px}
+.steptitle{font-size:16px; font-weight:600; margin:3px 0 6px}
+.stepdesc{font-size:13.5px; line-height:1.5; color:var(--ink); min-height:64px}
+.statebox{margin-top:12px; border:.5px solid var(--line); border-radius:10px; padding:10px 12px; background:var(--bg)}
+.staterow{font-size:12.5px; display:flex; gap:8px; margin-bottom:4px}
+.staterow b{color:var(--ink2); font-weight:600; min-width:54px}
+.substate{font-size:11px; color:var(--ink2); text-transform:uppercase; letter-spacing:.5px; margin:8px 0 4px}
+.graphrows{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11.5px; line-height:1.55}
+.grow{color:var(--ink); white-space:pre-wrap; word-break:break-word}
+.gtarget{color:var(--ink); font-weight:600}
+.gempty{color:var(--ink3); font-style:italic}
+.verdict{margin-top:10px; padding:9px 11px; border-radius:8px; font-size:12.5px; font-weight:600;
+  color:#fff; background:var(--ok); line-height:1.45}
+.foot{font-size:11.5px; color:var(--ink2); line-height:1.6; margin-top:14px; border-top:.5px solid var(--line); padding-top:10px}
+.foot b{color:var(--ink)}
+</style>
+</head>
+<body>
+<header>
+  <h1>MANTRA &mdash; architecture &amp; run</h1>
+  <p>One full engagement, stepped round by round. Active components light up; press <b>Next</b> until a vuln is confirmed.</p>
+</header>
+
+<div class="controls">
+  <button id="prev">Prev</button>
+  <button id="next">Next</button>
+  <button id="reset">Reset</button>
+  <span class="counter" id="counter"></span>
+</div>
+
+<div class="stage">
+  <div class="diagram-col">
+    <svg id="diagram" viewBox="0 0 920 410" preserveAspectRatio="xMidYMid meet" role="img" aria-label="MANTRA architecture with the current run step highlighted">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+
+      <g id="harness" class="node tog" style="--accent:#BC7016">
+        <rect x="40" y="18" width="840" height="48" rx="10"/>
+        <text class="nt" x="460" y="40" text-anchor="middle">HARNESS</text>
+        <text class="ns" x="460" y="57" text-anchor="middle">starts each round &middot; decides stop &middot; records findings &amp; scores</text>
+      </g>
+
+      <g id="agentframe">
+        <rect x="260" y="92" width="360" height="306" rx="12" class="frame"/>
+        <text class="frametitle" x="278" y="86">AGENT (LLM)  &mdash;  observe -&gt; reason -&gt; act loop</text>
+      </g>
+
+      <g id="observe" class="node tog" style="--accent:#6E7A8A">
+        <rect x="300" y="150" width="280" height="32" rx="7"/>
+        <text class="snt" x="440" y="171" text-anchor="middle">OBSERVE</text>
+      </g>
+      <g id="graph" class="node tog" style="--accent:#37892E">
+        <rect x="300" y="198" width="280" height="32" rx="7"/>
+        <text class="snt" x="440" y="219" text-anchor="middle">ENGAGEMENT GRAPH</text>
+      </g>
+      <g id="rag" class="node tog" style="--accent:#6A4BA6">
+        <rect x="300" y="246" width="280" height="32" rx="7"/>
+        <text class="snt" x="440" y="267" text-anchor="middle">RAG RETRIEVE</text>
+      </g>
+      <g id="plan" class="node tog" style="--accent:#C85A3C">
+        <rect x="300" y="294" width="280" height="32" rx="7"/>
+        <text class="snt" x="440" y="315" text-anchor="middle">LLM PLAN</text>
+      </g>
+      <g id="act" class="node tog" style="--accent:#BC7016">
+        <rect x="300" y="342" width="280" height="32" rx="7"/>
+        <text class="snt" x="440" y="363" text-anchor="middle">ACT</text>
+      </g>
+
+      <g class="loop">
+        <line x1="440" y1="182" x2="440" y2="196" marker-end="url(#ah)"/>
+        <line x1="440" y1="230" x2="440" y2="244" marker-end="url(#ah)"/>
+        <line x1="440" y1="278" x2="440" y2="292" marker-end="url(#ah)"/>
+        <line x1="440" y1="326" x2="440" y2="340" marker-end="url(#ah)"/>
+      </g>
+
+      <g id="kg" class="node tog" style="--accent:#6A4BA6">
+        <rect x="40" y="202" width="180" height="120" rx="10"/>
+        <text class="nt" x="130" y="228" text-anchor="middle">KNOWLEDGE GRAPH</text>
+        <text class="ns" x="130" y="250" text-anchor="middle">RAG corpus / GraphRAG</text>
+        <text class="ns" x="130" y="272" text-anchor="middle">CVE &middot; CPE &middot; ICS docs</text>
+        <text class="ns" x="130" y="290" text-anchor="middle">ATT&amp;CK-ICS &middot; notes</text>
+      </g>
+
+      <g id="env" class="node tog" style="--accent:#0E7C66">
+        <rect x="730" y="150" width="150" height="220" rx="12"/>
+        <text class="nt" x="805" y="176" text-anchor="middle">ENVIRONMENT</text>
+        <text class="ns" x="805" y="200" text-anchor="middle">runs the action</text>
+        <text class="ns" x="805" y="220" text-anchor="middle">returns only what</text>
+        <text class="ns" x="805" y="237" text-anchor="middle">an attacker sees</text>
+        <text class="ns" x="805" y="261" text-anchor="middle">(labels hidden)</text>
+      </g>
+
+      <g id="edge-bridge" class="edge tog" style="--accent:#6A4BA6">
+        <path d="M220 262 L300 262" marker-start="url(#ah)" marker-end="url(#ah)"/>
+        <text class="et" x="250" y="254" text-anchor="middle">bridge</text>
+      </g>
+      <g id="edge-action" class="edge tog" style="--accent:#BC7016">
+        <path d="M620 358 L730 358" marker-end="url(#ah)"/>
+        <text class="et" x="675" y="350" text-anchor="middle">Action</text>
+      </g>
+      <g id="edge-obs" class="edge tog" style="--accent:#0E7C66">
+        <path d="M730 166 L620 166" marker-end="url(#ah)"/>
+        <text class="et" x="675" y="158" text-anchor="middle">Observation</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="panel">
+    <div class="stephead"><span id="stepno"></span> &middot; <span id="roundlbl"></span></div>
+    <div class="steptitle" id="steptitle"></div>
+    <div class="stepdesc" id="stepdesc"></div>
+    <div class="statebox">
+      <div class="staterow"><b>Status</b><span id="status"></span></div>
+      <div class="staterow"><b>Budget</b><span id="budget"></span></div>
+      <div class="substate">Engagement graph (what the agent has built)</div>
+      <div class="graphrows" id="graphrows"></div>
+      <div class="verdict" id="verdict" hidden></div>
+    </div>
+  </div>
+</div>
+
+<div class="foot">
+  <b>The "barrier", in one line:</b> ground-truth labels (which hosts are real, decoy, or honeypot) go only to the harness scorer &mdash; never to the agent &mdash; so the decoy-discrimination metric can't be gamed.<br>
+  <b>Stop conditions:</b> a vuln is confirmed (shown here) &mdash; or the step budget hits 0 / the agent has no useful move left &rarr; <b>TERMINATED</b>. Either way the harness scores the run.
+</div>
+
+<script>
+(function(){
+  var HOSTS_R1 = [
+    ["10.10.0.5",[22,80]],
+    ["10.10.0.20",[502]],
+    ["10.10.0.21",[502]],
+    ["10.10.0.99",[23,502]],
+    ["10.10.0.7",[3306]]
+  ];
+
+  var steps = [
+    { round:"start", title:"Harness starts the engagement",
+      desc:"Load scenario 10.10.0.0/24. Target = 10.10.0.20 (Schneider Modbus, port 502). Budget = 50 steps.",
+      on:["harness"], status:"engagement started", budget:50 },
+
+    { round:"Round 1 - scan", title:"Agent plans",
+      desc:"No map yet, so the first move is to discover what is on the network.",
+      on:["plan"], status:"plan: scan the subnet" },
+    { round:"Round 1 - scan", title:"Act -> Environment",
+      desc:"Action: scan 10.10.0.0/24.",
+      on:["act","edge-action","env"], status:"Action -> scan 10.10.0.0/24" },
+    { round:"Round 1 - scan", title:"Observation -> graph",
+      desc:"The environment returns 5 live hosts and their open ports. No labels: which hosts are real vs traps stays hidden. The agent adds them to its map.",
+      on:["env","edge-obs","observe","graph"], status:"Observation <- 5 hosts up", addHosts:HOSTS_R1 },
+    { round:"Round 1 - scan", title:"Harness check",
+      desc:"Vuln found? No. Budget 49. Keep going.",
+      on:["harness"], status:"check: no vuln", budget:49 },
+
+    { round:"Round 2 - fingerprint + RAG", title:"Agent plans",
+      desc:"Ports are known but unidentified. Grab a banner; pick 10.10.0.20:502.",
+      on:["plan"], status:"plan: read_banner 10.10.0.20:502" },
+    { round:"Round 2 - fingerprint + RAG", title:"Act -> Environment",
+      desc:"Action: read_banner 10.10.0.20:502.",
+      on:["act","edge-action","env"], status:"Action -> read_banner 10.10.0.20:502" },
+    { round:"Round 2 - fingerprint + RAG", title:"Observation -> graph",
+      desc:"Banner = \"Schneider Modbus TCP\". The agent records it on that service node.",
+      on:["env","edge-obs","observe","graph"], status:"Observation <- banner: Schneider Modbus TCP",
+      annotate:{ip:"10.10.0.20", banner:"Schneider Modbus TCP"} },
+    { round:"Round 2 - fingerprint + RAG", title:"RAG retrieve (knowledge graph)",
+      desc:"Use \"Schneider Modbus 502\" as the key into the knowledge graph -> a known CVE, default credentials, and an ATT&CK-ICS technique. Write back onto the map: 10.10.0.20 = exploitable-via <CVE> (candidate).",
+      on:["rag","edge-bridge","kg","graph"], status:"RAG hit -> candidate CVE",
+      annotate:{ip:"10.10.0.20", note:"candidate <CVE> (via RAG)"} },
+    { round:"Round 2 - fingerprint + RAG", title:"Harness check",
+      desc:"Vuln? A candidate, but not confirmed yet. Budget 48. Keep going.",
+      on:["harness"], status:"check: candidate", budget:48 },
+
+    { round:"Round 3 - confirm", title:"Agent plans",
+      desc:"Confirm the candidate by actually reading a Modbus register.",
+      on:["plan"], status:"plan: modbus_read 10.10.0.20" },
+    { round:"Round 3 - confirm", title:"Act -> Environment",
+      desc:"Action: modbus_read 10.10.0.20.",
+      on:["act","edge-action","env"], status:"Action -> modbus_read 10.10.0.20" },
+    { round:"Round 3 - confirm", title:"Observation -> graph",
+      desc:"values = [7,1,0,4,4] - the register is readable. The candidate is now verified.",
+      on:["env","edge-obs","observe","graph"], status:"Observation <- values [7,1,0,4,4]",
+      annotate:{ip:"10.10.0.20", note:"Modbus readable [7,1,0,4,4]"} },
+    { round:"Round 3 - confirm", title:"STOP - vuln found",
+      desc:"Reachable and readable Modbus matching a known CVE. The harness records the finding and scores the run.",
+      on:["harness","graph"], status:"STOP: vuln found", budget:47,
+      verdict:"VULN FOUND - 10.10.0.20:502 (Schneider Modbus). Evidence: known CVE (from RAG) + Modbus readable (verified)." }
+  ];
+
+  var ALL_IDS = ["harness","kg","env","observe","graph","rag","plan","act","edge-action","edge-obs","edge-bridge"];
+
+  function stateAt(idx){
+    var map = new Map();
+    var budget = 50, status = "", verdict = null;
+    for(var k=0;k<=idx;k++){
+      var s = steps[k];
+      if(s.budget != null) budget = s.budget;
+      if(s.status != null) status = s.status;
+      if(s.addHosts){ s.addHosts.forEach(function(h){ map.set(h[0], {ports:h[1].slice(), banner:null, notes:[]}); }); }
+      if(s.annotate){
+        var e = map.get(s.annotate.ip);
+        if(e){
+          if(s.annotate.banner) e.banner = s.annotate.banner;
+          if(s.annotate.note) e.notes.push(s.annotate.note);
+        }
+      }
+      if(s.verdict != null) verdict = s.verdict;
+    }
+    return {map:map, budget:budget, status:status, verdict:verdict};
+  }
+
+  var cur = 0;
+  var $ = function(id){ return document.getElementById(id); };
+
+  function render(idx){
+    var s = steps[idx];
+    var st = stateAt(idx);
+
+    ALL_IDS.forEach(function(id){
+      var el = $(id);
+      if(!el) return;
+      var on = s.on.indexOf(id) !== -1;
+      el.classList.toggle("on", on);
+      el.classList.toggle("dim", !on);
+    });
+
+    $("stepno").textContent = "Step " + (idx+1) + " / " + steps.length;
+    $("roundlbl").textContent = s.round;
+    $("steptitle").textContent = s.title;
+    $("stepdesc").textContent = s.desc;
+    $("status").textContent = st.status;
+    $("budget").textContent = st.budget + " steps left";
+    $("counter").textContent = (idx+1) + " / " + steps.length;
+
+    var rows = $("graphrows");
+    rows.textContent = "";
+    if(st.map.size === 0){
+      var d = document.createElement("div");
+      d.className = "gempty";
+      d.textContent = "(empty - nothing discovered yet)";
+      rows.appendChild(d);
+    } else {
+      st.map.forEach(function(e, ip){
+        var row = document.createElement("div");
+        row.className = "grow" + (ip === "10.10.0.20" ? " gtarget" : "");
+        var t = ip + "  " + e.ports.map(function(p){ return ":" + p; }).join(",");
+        if(e.banner) t += "  \"" + e.banner + "\"";
+        e.notes.forEach(function(n){ t += "  [" + n + "]"; });
+        row.textContent = t;
+        rows.appendChild(row);
+      });
+    }
+
+    var v = $("verdict");
+    if(st.verdict){ v.hidden = false; v.textContent = "\u2713 " + st.verdict; }
+    else { v.hidden = true; v.textContent = ""; }
+
+    $("prev").disabled = (idx === 0);
+    $("next").disabled = (idx === steps.length - 1);
+  }
+
+  function go(n){ cur = Math.max(0, Math.min(steps.length - 1, n)); render(cur); }
+
+  $("prev").addEventListener("click", function(){ go(cur - 1); });
+  $("next").addEventListener("click", function(){ go(cur + 1); });
+  $("reset").addEventListener("click", function(){ go(0); });
+  window.addEventListener("keydown", function(e){
+    if(e.key === "ArrowRight" || e.key === " "){ e.preventDefault(); go(cur + 1); }
+    else if(e.key === "ArrowLeft"){ e.preventDefault(); go(cur - 1); }
+    else if(e.key === "r" || e.key === "R"){ go(0); }
+  });
+
+  render(0);
+})();
+</script>
+</body>
+</html>
