@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CMP Tool Animation — In-Situ / Pulse Conditioning</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e14;
+    --surface: #131820;
+    --surface-2: #1a212c;
+    --border: #2a3441;
+    --border-bright: #3a4858;
+    --text: #e8eef5;
+    --text-dim: #8b9aab;
+    --text-faint: #5a6878;
+    --cyan: #00d4ff;
+    --cyan-dim: #0088aa;
+    --cyan-glow: rgba(0, 212, 255, 0.15);
+    --amber: #ffa028;
+    --amber-dim: #cc6818;
+    --amber-glow: rgba(255, 160, 40, 0.15);
+    --green: #00ff88;
+    --red: #ff3860;
+    --purple: #a060ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+  #app {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100vh;
+  }
+
+  /* ===== HEADER ===== */
+  header {
+    padding: 12px 24px;
+    background: linear-gradient(180deg, var(--surface), var(--surface-2));
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand-logo {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--cyan) 0%, var(--amber) 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; color: #000; font-size: 13px; letter-spacing: -0.5px;
+    box-shadow: 0 2px 12px rgba(0, 212, 255, 0.3);
+  }
+  .brand-title { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+  .brand-subtitle {
+    font-size: 11px; color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace; margin-top: 2px;
+  }
+  .mode-toggle {
+    display: flex; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 3px; gap: 3px;
+  }
+  .mode-btn {
+    padding: 9px 22px; background: transparent; color: var(--text-dim);
+    border: none; border-radius: 7px; cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600;
+    transition: all 0.25s ease; letter-spacing: 0.3px;
+  }
+  .mode-btn:hover { color: var(--text); }
+  .mode-btn.active { background: var(--surface-2); }
+  .mode-btn[data-mode="insitu"].active {
+    color: var(--cyan);
+    box-shadow: inset 0 0 0 1px var(--cyan-dim), 0 0 20px rgba(0, 212, 255, 0.1);
+  }
+  .mode-btn[data-mode="pulse"].active {
+    color: var(--amber);
+    box-shadow: inset 0 0 0 1px var(--amber-dim), 0 0 20px rgba(255, 160, 40, 0.1);
+  }
+  .header-info {
+    display: flex; gap: 20px; font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--text-faint);
+  }
+  .header-info span b { color: var(--text-dim); font-weight: 500; }
+
+  /* ===== CANVAS AREA ===== */
+  #canvas-container { position: relative; overflow: hidden; background: #eef1f5; }
+  #three-canvas { display: block; width: 100%; height: 100%; }
+
+  /* ===== HUD ===== */
+  .hud-overlay {
+    position: absolute; top: 18px; left: 18px; pointer-events: none;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    background: rgba(10, 14, 20, 0.82); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; backdrop-filter: blur(10px); min-width: 220px;
+  }
+  .hud-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .hud-row:last-child { margin-bottom: 0; }
+  .hud-label { color: var(--text-faint); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+  .hud-value { color: var(--text); font-weight: 500; }
+  .hud-value.cyan { color: var(--cyan); }
+  .hud-value.amber { color: var(--amber); }
+  .phase-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 4px;
+    background: var(--cyan-glow); border: 1px solid var(--cyan-dim); color: var(--cyan);
+    font-size: 10px; font-weight: 700; letter-spacing: 0.5px; transition: all 0.3s ease;
+  }
+  .phase-badge.pulse { background: var(--amber-glow); border-color: var(--amber-dim); color: var(--amber); }
+  .hud-divider { height: 1px; background: var(--border); margin: 8px 0; }
+  .telemetry-bar { width: 100%; height: 3px; background: var(--bg); border-radius: 2px; overflow: hidden; margin-top: 2px; }
+  .telemetry-fill { height: 100%; background: var(--cyan); border-radius: 2px; transition: width 0.1s linear, background 0.3s; }
+  .telemetry-fill.amber { background: var(--amber); }
+
+  /* ===== PARAMS PANEL ===== */
+  .params-panel {
+    position: absolute; top: 18px; right: 18px;
+    background: rgba(10, 14, 20, 0.82); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; backdrop-filter: blur(10px); min-width: 210px;
+  }
+  .params-title {
+    color: var(--text-faint); font-size: 10px; letter-spacing: 1.5px;
+    margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .param-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+  .param-row:last-child { margin-bottom: 0; }
+  .param-key { color: var(--text-faint); }
+  .param-val { color: var(--text); }
+  .param-val.accent-cyan { color: var(--cyan); }
+  .param-val.accent-amber { color: var(--amber); }
+  .param-input {
+    width: 70px; text-align: right; background: var(--bg);
+    border: 1px solid var(--border); color: var(--text);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    border-radius: 5px; padding: 2px 5px; outline: none;
+  }
+  .param-input:focus { border-color: var(--cyan); }
+  .param-input.accent-cyan { color: var(--cyan); }
+  .param-input.accent-amber { color: var(--amber); }
+  select.param-input { width: 84px; }
+  .cfg-reset {
+    margin-top: 10px; width: 100%; padding: 6px; background: var(--bg);
+    border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 6px; cursor: pointer; font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 1px; transition: all 0.2s;
+  }
+  .cfg-reset:hover { color: var(--cyan); border-color: var(--cyan-dim); }
+
+  /* ===== LEGEND ===== */
+  .legend {
+    position: absolute; bottom: 18px; right: 18px;
+    background: rgba(10, 14, 20, 0.82); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; backdrop-filter: blur(10px);
+  }
+  .legend-title {
+    color: var(--text-faint); font-size: 10px; letter-spacing: 1.5px;
+    margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .legend-item:last-child { margin-bottom: 0; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 6px currentColor; }
+
+  /* ===== AXIS GIZMO ===== */
+  .axis-gizmo {
+    position: absolute; bottom: 18px; left: 18px; width: 90px; height: 90px;
+    background: rgba(10, 14, 20, 0.82); border: 1px solid var(--border);
+    border-radius: 10px; backdrop-filter: blur(10px);
+  }
+
+  /* ===== CAMERA CONTROL PANEL ===== */
+  .cam-panel {
+    position: absolute; bottom: 18px; left: 118px; width: 230px;
+    background: rgba(10, 14, 20, 0.82); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; backdrop-filter: blur(10px);
+  }
+  .slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .slider-row:last-child { margin-bottom: 0; }
+  .slider-row span:first-child { width: 55px; color: var(--text-faint); }
+  .slider-row input[type=range] {
+    flex: 1; height: 4px; background: var(--bg); border-radius: 2px;
+    appearance: none; -webkit-appearance: none; outline: none;
+  }
+  .slider-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--cyan); cursor: pointer; box-shadow: 0 0 6px var(--cyan);
+  }
+  .slider-row input[type=range]::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%; border: none;
+    background: var(--cyan); cursor: pointer; box-shadow: 0 0 6px var(--cyan);
+  }
+  .slider-row span:last-child { width: 45px; text-align: right; color: var(--text); }
+
+  /* ===== CONTROLS ===== */
+  #controls {
+    background: linear-gradient(180deg, var(--surface-2), var(--surface));
+    border-top: 1px solid var(--border); padding: 14px 24px 16px;
+  }
+  .control-row { display: flex; align-items: center; gap: 14px; }
+  .play-btn {
+    width: 42px; height: 42px; border-radius: 50%; background: var(--cyan);
+    border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: #000; transition: all 0.2s; box-shadow: 0 0 16px rgba(0, 212, 255, 0.4); flex-shrink: 0;
+  }
+  .play-btn:hover { transform: scale(1.06); }
+  .play-btn.pulse-mode { background: var(--amber); box-shadow: 0 0 16px rgba(255, 160, 40, 0.4); }
+
+  .icon-btn {
+    width: 36px; height: 36px; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--border-bright); background: var(--surface-2); }
+  .icon-btn.active { color: var(--cyan); border-color: var(--cyan-dim); background: var(--cyan-glow); }
+  .icon-btn.active.pulse-mode { color: var(--amber); border-color: var(--amber-dim); background: var(--amber-glow); }
+
+  .time-readout {
+    font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--text);
+    min-width: 130px; text-align: center; font-weight: 500; letter-spacing: 0.5px;
+  }
+  .time-readout span { color: var(--text-faint); }
+
+  .timeline-container { flex: 1; position: relative; min-width: 0; }
+  .timeline-track {
+    height: 42px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border);
+    position: relative; overflow: hidden; cursor: pointer;
+  }
+  .timeline-phase {
+    position: absolute; top: 0; bottom: 0; display: flex; align-items: center;
+    padding: 0 10px; font-size: 10px; font-family: 'JetBrains Mono', monospace;
+    font-weight: 600; letter-spacing: 0.5px; overflow: hidden; white-space: nowrap;
+    border-right: 1px solid rgba(255,255,255,0.08); transition: opacity 0.3s;
+  }
+  .phase-cyan { background: linear-gradient(180deg, rgba(0,212,255,0.18), rgba(0,212,255,0.04)); color: var(--cyan); }
+  .phase-blue { background: linear-gradient(180deg, rgba(0,136,255,0.18), rgba(0,136,255,0.04)); color: #4a9eff; }
+  .phase-purple { background: linear-gradient(180deg, rgba(160,96,255,0.18), rgba(160,96,255,0.04)); color: var(--purple); }
+  .phase-amber { background: linear-gradient(180deg, rgba(255,160,40,0.18), rgba(255,160,40,0.04)); color: var(--amber); }
+  .phase-yellow { background: linear-gradient(180deg, rgba(255,200,40,0.15), rgba(255,200,40,0.03)); color: #ffc828; }
+  .phase-orange { background: linear-gradient(180deg, rgba(255,100,40,0.18), rgba(255,100,40,0.04)); color: #ff6428; }
+  .phase-red { background: linear-gradient(180deg, rgba(255,56,96,0.18), rgba(255,56,96,0.04)); color: var(--red); }
+  .phase-darkred { background: linear-gradient(180deg, rgba(180,40,60,0.18), rgba(180,40,60,0.04)); color: #c83048; }
+
+  .timeline-cursor {
+    position: absolute; top: -3px; bottom: -3px; width: 2px; background: #ffffff;
+    pointer-events: none; box-shadow: 0 0 10px rgba(255,255,255,0.7), 0 0 4px rgba(255,255,255,1); z-index: 5;
+  }
+  .timeline-cursor::before {
+    content: ''; position: absolute; top: -5px; left: -6px; width: 14px; height: 14px;
+    background: #fff; border-radius: 50%; box-shadow: 0 0 12px rgba(255,255,255,0.6);
+  }
+  .timeline-ticks { position: absolute; bottom: 0; left: 0; right: 0; height: 4px; display: flex; pointer-events: none; }
+  .timeline-tick { flex: 1; border-right: 1px solid rgba(255,255,255,0.06); }
+
+  .speed-control {
+    display: flex; align-items: center; gap: 4px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 8px; padding: 3px;
+  }
+  .speed-btn {
+    padding: 5px 9px; background: transparent; border: none; color: var(--text-dim);
+    border-radius: 5px; cursor: pointer; font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 500; transition: all 0.2s;
+  }
+  .speed-btn:hover { color: var(--text); }
+  .speed-btn.active { background: var(--surface-2); color: var(--text); }
+
+  .control-group { display: flex; gap: 6px; align-items: center; }
+  .control-divider { width: 1px; height: 28px; background: var(--border); }
+
+  /* ===== TOAST ===== */
+  .toast {
+    position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--surface); border: 1px solid var(--cyan-dim); color: var(--cyan);
+    padding: 10px 20px; border-radius: 8px; font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; opacity: 0; transition: all 0.3s ease; pointer-events: none; z-index: 100;
+    box-shadow: 0 4px 20px rgba(0, 212, 255, 0.2);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.amber { border-color: var(--amber-dim); color: var(--amber); box-shadow: 0 4px 20px rgba(255, 160, 40, 0.2); }
+
+  @media (max-width: 900px) {
+    .header-info, .params-panel, .legend { display: none; }
+    .cam-panel { display: none; }
+    .timeline-phase { font-size: 8px; padding: 0 4px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">
+      <div class="brand-logo">CMP</div>
+      <div>
+        <div class="brand-title">Chemical Mechanical Planarization Tool</div>
+        <div class="brand-subtitle">3D Visualization · In-Situ vs Partial In-Situ Conditioning</div>
+      </div>
+    </div>
+    <div class="mode-toggle">
+      <button class="mode-btn active" data-mode="insitu">In-Situ</button>
+      <button class="mode-btn" data-mode="pulse">Partial In-Situ</button>
+    </div>
+    <div class="header-info">
+      <span><b>FHD</b> 1920×1080</span>
+      <span><b>FPS</b> 24</span>
+      <span><b>Frames</b> 144</span>
+      <span><b>Duration</b> 6.0s</span>
+    </div>
+  </header>
+
+  <div id="canvas-container">
+    <canvas id="three-canvas"></canvas>
+
+    <div class="hud-overlay">
+      <div class="hud-row"><span class="hud-label">MODE</span><span class="hud-value cyan" id="hud-mode">IN-SITU</span></div>
+      <div class="hud-row"><span class="hud-label">PHASE</span><span class="phase-badge" id="hud-phase">SWEEP + CONDITION</span></div>
+      <div class="hud-row"><span class="hud-label">TIME</span><span class="hud-value" id="hud-time">0.000 s</span></div>
+      <div class="hud-row"><span class="hud-label">FRAME</span><span class="hud-value" id="hud-frame">0 / 144</span></div>
+      <div class="hud-divider"></div>
+      <div class="hud-row"><span class="hud-label">HEAD SWEEP</span><span class="hud-value" id="hud-sweep">+0.000</span></div>
+      <div class="telemetry-bar"><div class="telemetry-fill" id="bar-sweep" style="width:50%"></div></div>
+      <div class="hud-row" style="margin-top:6px"><span class="hud-label">HEAD LIFT</span><span class="hud-value" id="hud-lift">0.000</span></div>
+      <div class="telemetry-bar"><div class="telemetry-fill" id="bar-lift" style="width:0%"></div></div>
+      <div class="hud-row" style="margin-top:6px"><span class="hud-label">ARM ANGLE</span><span class="hud-value" id="hud-arm">-10.0°</span></div>
+      <div class="telemetry-bar"><div class="telemetry-fill" id="bar-arm" style="width:0%"></div></div>
+      <div class="hud-row" style="margin-top:6px"><span class="hud-label">DISK LIFT</span><span class="hud-value" id="hud-disk">0.000</span></div>
+      <div class="telemetry-bar"><div class="telemetry-fill" id="bar-disk" style="width:0%"></div></div>
+    </div>
+
+    <div class="params-panel">
+      <div class="params-title">CONFIGURATION · 即時可調</div>
+      <div class="param-row"><span class="param-key">Pad radius</span><input class="param-input" id="cfg-pr" type="number" value="2.20" min="1.5" max="3" step="0.05"></div>
+      <div class="param-row"><span class="param-key">Head sweeps</span><input class="param-input" id="cfg-hsw" type="number" value="4" min="0" max="8" step="1"></div>
+      <div class="param-row"><span class="param-key">Sweep amplitude</span><input class="param-input" id="cfg-amp" type="number" value="0.30" min="0" max="1" step="0.02"></div>
+      <div class="param-row"><span class="param-key">Sweep direction</span><select class="param-input" id="cfg-dir"><option value="1">+X axis</option><option value="-1">&minus;X axis</option></select></div>
+      <div class="param-row"><span class="param-key">Head lift height</span><input class="param-input" id="cfg-lift" type="number" value="0.33" min="0" max="1" step="0.02"></div>
+      <div class="param-row"><span class="param-key">Post height</span><input class="param-input" id="cfg-post" type="number" value="0.48" min="0.1" max="1.2" step="0.02"></div>
+      <div class="param-row"><span class="param-key">Arm sweep (in-situ)</span><input class="param-input accent-cyan" id="cfg-asi" type="number" value="5" min="0" max="10" step="1"></div>
+      <div class="param-row"><span class="param-key">Arm sweep (partial)</span><input class="param-input accent-amber" id="cfg-asp" type="number" value="2" min="0" max="10" step="1"></div>
+      <div class="param-row"><span class="param-key">Arm angle OUT</span><input class="param-input" id="cfg-out" type="number" value="50" min="-30" max="80" step="1"></div>
+      <div class="param-row"><span class="param-key">Arm angle PARK</span><input class="param-input" id="cfg-park" type="number" value="90" min="50" max="120" step="1"></div>
+      <div class="param-row"><span class="param-key">Camera</span><span class="param-val" style="font-size:10px">↓ 用下方滑桿</span></div>
+      <button class="cfg-reset" id="cfg-reset">RESET DEFAULTS</button>
+    </div>
+
+    <div class="legend">
+      <div class="legend-title">COMPONENTS</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#d2b48c;color:#d2b48c"></div><span>Polishing Pad</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#00d4ff;color:#00d4ff"></div><span>Polishing Head</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ffa028;color:#ffa028"></div><span>Conditioner Arm</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#88aaff;color:#88aaff"></div><span>Slurry Flow</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#8a98a8;color:#8a98a8"></div><span>Cross Frame</span></div>
+    </div>
+
+    <canvas class="axis-gizmo" id="axis-gizmo" width="180" height="180"></canvas>
+
+    <div class="cam-panel">
+      <div class="params-title">CAMERA CONTROL</div>
+      <div class="slider-row">
+        <span>Azimuth</span>
+        <input type="range" id="cam-az" min="-180" max="180" step="0.1" value="-43.7">
+        <span id="val-az">-43.7°</span>
+      </div>
+      <div class="slider-row">
+        <span>Elevation</span>
+        <input type="range" id="cam-el" min="5" max="85" step="0.1" value="28.3">
+        <span id="val-el">28.3°</span>
+      </div>
+      <div class="slider-row">
+        <span>Distance</span>
+        <input type="range" id="cam-dist" min="5" max="20" step="0.1" value="10.85">
+        <span id="val-dist">10.85</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <div class="control-row">
+      <button class="play-btn" id="play-btn" title="Play / Pause">
+        <svg id="play-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+      <div class="control-group">
+        <button class="icon-btn" id="restart-btn" title="Restart">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+        </button>
+        <button class="icon-btn" id="prev-frame-btn" title="Previous Frame">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+        </button>
+        <button class="icon-btn" id="next-frame-btn" title="Next Frame">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+        </button>
+      </div>
+      <div class="time-readout" id="time-readout">0.000 <span>/ 6.000 s</span></div>
+      <div class="timeline-container">
+        <div class="timeline-track" id="timeline-track">
+          <div class="timeline-cursor" id="timeline-cursor" style="left: 0%;"></div>
+          <div class="timeline-ticks" id="timeline-ticks"></div>
+        </div>
+      </div>
+      <div class="speed-control">
+        <button class="speed-btn" data-speed="0.25">0.25×</button>
+        <button class="speed-btn" data-speed="0.5">0.5×</button>
+        <button class="speed-btn active" data-speed="1">1×</button>
+        <button class="speed-btn" data-speed="2">2×</button>
+      </div>
+      <div class="control-divider"></div>
+      <div class="control-group">
+        <button class="icon-btn active" id="loop-btn" title="Loop">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+        </button>
+        <button class="icon-btn" id="camera-btn" title="Reset Camera">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+        </button>
+        <button class="icon-btn" id="snapshot-btn" title="Save Frame as PNG">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ============================================================
+//  PARAMETERS  —  數值對齊 cmp_insitu_mac.py（影片來源）
+// ============================================================
+const P = {
+  PR: 2.2,                     // pad radius           (Python PR=2.2)
+  PAD_H: 0.15,                 // pad thickness（HTML 視覺用）
+  HEAD_SWEEPS: 4,              // head 來回次數         (Python HEAD_SWEEPS=4)
+  HEAD_SWEEP_AMP: 0.30,        //                      (Python HEAD_SWEEP_AMP=0.30)
+  HEAD_SPIN_RPS: 1.0,          // head 自轉 rev/s（co-rotate：同向同速 = platen → 相對滑動均勻）
+  HEAD_LIFT: 0.33,
+  POST_H: 0.48,
+  PAD_SPIN: 2 * Math.PI,       // pad 自轉 rad/s = 1 rev/s (Python PLATEN_OMEGA=2π·1.0)
+  ARM_SWEEPS_INSITU: 5,        // 調節臂掃動次數        (Python ARM_SWEEPS_INSITU=5)
+  PULSE_SWEEPS: 2,
+  PULSE_SWEEP_END: 2.0,
+  PULSE_DISK_LIFT_START: 2.0,
+  PULSE_DISK_LIFT_END: 3.5,
+  T_LIFT_START: 4.0,
+  T_RETRACT_START: 5.0,
+  DURATION: 6.0,
+  N_FRAMES: 144,
+  FPS: 24,
+  ARM_ANGLE_IN: 0 * Math.PI / 180,    // 內掃端 0°：臂指向圓心，盤掃到近中心（覆蓋 wafer 內軌）
+  ARM_ANGLE_OUT: 50 * Math.PI / 180,
+  ARM_ANGLE_PARK: 90 * Math.PI / 180,
+  PIVOT_ANGLE_BASE: 10 * Math.PI / 180,   // (Python PIVOT_ANGLE_BASE=radians(10))
+  WIN_ANGLES: [90, 210, 330],
+  PIVOT: new THREE.Vector3(2.481716, 0.437593, 0.30),  // 右側 +X（Python PVX,PVY = PR+0.32 @ 10°，精確值）
+  ARM_LEN: 1.95,                                   // 加長：盤可掃到近中心（min disk r≈0.57，覆蓋 wafer 全軌）
+  ARM_Z: 0.13,                                     // 臂高度（讓盤貼著 pad 面）
+  HEAD_REST: new THREE.Vector3(-0.90, 0.65, 0.075), // (Python CCX,CCY = -0.90, 0.65)
+  CAM_POS: new THREE.Vector3(7.0, -6.5, 6.0),
+  CAM_TARGET: new THREE.Vector3(0.1, 0.1, 0.85),
+};
+
+// 垂直座標完全鏡射 Python（pad 頂面 Z_padt=0.56），讓同一台固定相機框法一致
+const Z = { PB: 0.0, PT: 0.42, PADT: 0.56 };
+Z.RR_IN = 0.46; Z.RR_OUT = 0.56; Z.RR_H = 0.20; Z.CH = 0.45;
+Z.RR = Z.PADT; Z.RR_TOP = Z.RR + Z.RR_H;          // 護圈 0.56 → 0.76
+Z.CB = Z.RR_TOP; Z.CT = Z.CB + Z.CH;              // 帽座頂 1.21
+Z.DB = Z.PADT; Z.DT = Z.DB + 0.12; Z.DP_TOP = Z.DT + 0.40;  // 盤 0.56→0.68，臂高 1.08
+const POSTR = 0.048, ARMR = 0.055;
+const DISK_RPS = 1.5;                             // 修整盤自轉 rev/s（90rpm，落在 80–150 典型帶內）
+P.ARM_Z = Z.DP_TOP;                               // 調節臂高度 = 1.08（覆寫）
+P.SWEEP_DIR = 1;                                  // head 掃動方向（+1 = +X，可調）
+// Cross 半透明箱（在 head 靜止位置上方，對齊 Python add_cross_box）
+const CBOX = { x: -0.90, y: 0.65, zb: Z.CT + 0.02, zt: Z.CT + 1.0, hx: 1.15, hy: 0.68 };  // 箱頂加高以容納抬升後的頭柱
+// Slurry 臂端點（Python 旋轉 30°）
+const _c30 = Math.cos(Math.PI/6), _s30 = Math.sin(Math.PI/6);
+const rot30 = (x, y) => [x*_c30 - y*_s30, x*_s30 + y*_c30];
+const SA1 = rot30(-P.PR - 0.15, -1.20);           // ≈ (-1.435, -2.214)
+const SA2 = [0.0, -0.58];                         // 縮短 slurry 臂：噴嘴移到中心正下方(方位 -90°)，避開調節器掃動弧
+const SA_ZB = Z.PADT + 0.08, SA_ZT = Z.PADT + 0.28;
+
+// ============================================================
+//  EASING
+// ============================================================
+const easeInOutCubic = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
+const easeOutQuad = t => 1 - (1-t)*(1-t);
+const easeInQuad = t => t*t;
+const easeOutCubic = t => 1 - Math.pow(1-t, 3);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const lerp = (a,b,t) => a + (b-a)*t;
+
+// ============================================================
+//  SCENE / RENDERER / CAMERA
+// ============================================================
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+
+function makeBgTex(){
+  const c = document.createElement('canvas');
+  c.width = 4; c.height = 512;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0,0,0,512);
+  g.addColorStop(0, '#ffffff');
+  g.addColorStop(0.55, '#f0f3f8');
+  g.addColorStop(1, '#d8dee6');
+  ctx.fillStyle = g; ctx.fillRect(0,0,4,512);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+scene.background = makeBgTex();
+
+const camera = new THREE.PerspectiveCamera(30, container.clientWidth/container.clientHeight, 0.1, 100);
+camera.up.set(0, 0, 1);
+camera.position.copy(P.CAM_POS);
+camera.lookAt(P.CAM_TARGET);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: document.getElementById('three-canvas'),
+  antialias: true,
+  preserveDrawingBuffer: true,
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.shadowMap.enabled = false;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;   // VTK 不做 tone-mapping，改用平直輸出更接近影片
+renderer.toneMappingExposure = 1.0;
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(P.CAM_TARGET);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 4;
+controls.maxDistance = 22;
+controls.maxPolarAngle = Math.PI/2 - 0.03;
+
+const initialDir = new THREE.Vector3().subVectors(P.CAM_POS, P.CAM_TARGET);
+const initD = initialDir.length();
+const initEl = Math.asin(initialDir.z / initD) * 180 / Math.PI;
+const initAz = Math.atan2(initialDir.y, initialDir.x) * 180 / Math.PI;
+
+let camParams = {
+  azimuth: initAz,
+  elevation: initEl,
+  distance: initD,
+  target: P.CAM_TARGET.clone()
+};
+
+function updateCameraFromParams() {
+  const az = camParams.azimuth * Math.PI / 180;
+  const el = camParams.elevation * Math.PI / 180;
+  const d = camParams.distance;
+  camera.position.set(
+    camParams.target.x + d * Math.cos(el) * Math.cos(az),
+    camParams.target.y + d * Math.cos(el) * Math.sin(az),
+    camParams.target.z + d * Math.sin(el)
+  );
+  controls.target.copy(camParams.target);
+  controls.update();
+}
+
+const slAz = document.getElementById('cam-az');
+const slEl = document.getElementById('cam-el');
+const slDist = document.getElementById('cam-dist');
+const valAz = document.getElementById('val-az');
+const valEl = document.getElementById('val-el');
+const valDist = document.getElementById('val-dist');
+
+function syncSlidersFromCamera() {
+  const dir = new THREE.Vector3().subVectors(camera.position, controls.target);
+  const d = dir.length();
+  const el = Math.asin(dir.z / d) * 180 / Math.PI;
+  const az = Math.atan2(dir.y, dir.x) * 180 / Math.PI;
+  camParams.azimuth = az;
+  camParams.elevation = el;
+  camParams.distance = d;
+  slAz.value = az;
+  slEl.value = el;
+  slDist.value = d;
+  valAz.textContent = az.toFixed(1) + '°';
+  valEl.textContent = el.toFixed(1) + '°';
+  valDist.textContent = d.toFixed(2);
+}
+
+slAz.addEventListener('input', (e) => {
+  camParams.azimuth = parseFloat(e.target.value);
+  valAz.textContent = camParams.azimuth.toFixed(1) + '°';
+  updateCameraFromParams();
+});
+slEl.addEventListener('input', (e) => {
+  camParams.elevation = parseFloat(e.target.value);
+  valEl.textContent = camParams.elevation.toFixed(1) + '°';
+  updateCameraFromParams();
+});
+slDist.addEventListener('input', (e) => {
+  camParams.distance = parseFloat(e.target.value);
+  valDist.textContent = camParams.distance.toFixed(2);
+  updateCameraFromParams();
+});
+
+controls.addEventListener('change', syncSlidersFromCamera);
+syncSlidersFromCamera();
+
+// ============================================================
+//  LIGHTS
+// ============================================================
+scene.add(new THREE.AmbientLight(0xffffff, 0.52));
+
+// 燈光方位對齊 Python 的 4 盞（key/fill/top/bottom）
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.85);
+keyLight.position.set(5, -3, 8);
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0xddeeff, 0.40);
+fillLight.position.set(-4, 2, 5);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0xffeecc, 0.22);
+rimLight.position.set(0, 0, 8);
+scene.add(rimLight);
+
+const bottomLight = new THREE.DirectionalLight(0xffffff, 0.20);
+bottomLight.position.set(0, -5, 3);
+scene.add(bottomLight);
+
+// ============================================================
+//  GROUND  —  影片為純白背景、無地板/格線，移除
+// ============================================================
+
+// ============================================================
+//  HELPERS
+// ============================================================
+function cylZ(rt, rb, h, segs=32) {
+  const g = new THREE.CylinderGeometry(rt, rb, h, segs);
+  g.rotateX(Math.PI/2);
+  return g;
+}
+function cylX(rt, rb, h, segs=32) {
+  const g = new THREE.CylinderGeometry(rt, rb, h, segs);
+  g.rotateZ(-Math.PI/2);
+  return g;
+}
+
+// ============================================================
+//  PAD TEXTURE (Modified to Light Yellow / Cream)
+// ============================================================
+function makePadTexture() {
+  const size = 1024;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const cx = size/2, cy = size/2;
+  const R = size/2 - 6;
+
+  // 淺黃色/米色底 (參考圖片中的平台顏色)
+  const baseGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+  baseGrad.addColorStop(0, '#efe4c4');
+  baseGrad.addColorStop(0.7, '#e2cda2');
+  baseGrad.addColorStop(1, '#d2bb8e');
+  ctx.fillStyle = baseGrad;
+  ctx.fillRect(0,0,size,size);
+
+  // 同心圓溝槽
+  for (let i = 0; i < 22; i++) {
+    const r = R * (i+1) / 23;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.strokeStyle = i % 2 === 0 ? 'rgba(150,120,80,0.6)' : 'rgba(200,170,120,0.4)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
+
+  // 徑向微紋理
+  for (let i = 0; i < 72; i++) {
+    const a = (i/72) * Math.PI*2;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a)*30, cy + Math.sin(a)*30);
+    ctx.lineTo(cx + Math.cos(a)*R, cy + Math.sin(a)*R);
+    ctx.strokeStyle = 'rgba(140,110,70,0.2)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+
+  // 不對稱 slurry trail
+  for (let i = 0; i < 6; i++) {
+    const a = (i/6)*Math.PI*2 + 0.4;
+    const r1 = R*0.18, r2 = R*0.88;
+    const grad = ctx.createLinearGradient(
+      cx+Math.cos(a)*r1, cy+Math.sin(a)*r1,
+      cx+Math.cos(a)*r2, cy+Math.sin(a)*r2
+    );
+    grad.addColorStop(0, 'rgba(150,180,220,0)');
+    grad.addColorStop(0.4, 'rgba(150,180,220,0.35)');
+    grad.addColorStop(0.6, 'rgba(150,180,220,0.35)');
+    grad.addColorStop(1, 'rgba(150,180,220,0)');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(a)*r1, cy+Math.sin(a)*r1);
+    ctx.lineTo(cx+Math.cos(a)*r2, cy+Math.sin(a)*r2);
+    ctx.stroke();
+  }
+
+  // 3個 window（半徑比對齊 Python WIN_R=1.05 / PR=2.2 ≈ 0.48R）
+  P.WIN_ANGLES.forEach(deg => {
+    const a = deg * Math.PI/180;
+    const wr = R * 0.48;
+    const wx = cx + Math.cos(a)*wr;
+    const wy = cy + Math.sin(a)*wr;
+    ctx.beginPath(); ctx.arc(wx, wy, 21, 0, Math.PI*2);
+    ctx.fillStyle = '#5a4a30'; ctx.fill(); // 深黃褐色的孔（縮半）
+    ctx.strokeStyle = '#8a7050'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(wx, wy, 14, 0, Math.PI*2);
+    ctx.fillStyle = '#3a2a10'; ctx.fill();
+    ctx.beginPath(); ctx.arc(wx-3, wy-3, 4, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(100,140,180,0.3)'; ctx.fill();
+  });
+
+  // （中心黑點已移除）
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+const padGroup = new THREE.Group();
+scene.add(padGroup);
+
+const padMesh = new THREE.Mesh(
+  cylZ(P.PR, P.PR, Z.PADT - Z.PT, 96),                 // pad 0.42 → 0.56（米色）
+  new THREE.MeshStandardMaterial({ map: makePadTexture(), roughness: 0.82, metalness: 0.08 })
+);
+padMesh.position.z = (Z.PT + Z.PADT) / 2;
+padGroup.add(padMesh);
+
+const padEdge = new THREE.Mesh(
+  new THREE.TorusGeometry(P.PR, 0.028, 12, 96),
+  new THREE.MeshStandardMaterial({ color: 0x8a7050, roughness: 0.5, metalness: 0.4 })
+);
+padEdge.position.z = Z.PADT;
+padGroup.add(padEdge);
+
+const platen = new THREE.Mesh(
+  cylZ(P.PR, P.PR, Z.PT - Z.PB, 96),                   // 灰色底座 0 → 0.42
+  new THREE.MeshStandardMaterial({ color: 0x787878, roughness: 0.55, metalness: 0.35 })
+);
+platen.position.z = (Z.PB + Z.PT) / 2;
+padGroup.add(platen);
+
+// Slurry 薄膜：平貼 pad、半徑隨 t 由中心向外擴張成薄膜（對齊 Python add_slurry_film）
+const slurryFilm = new THREE.Mesh(
+  new THREE.CircleGeometry(1.0, 80),                  // 半徑用 scale 控制（不旋轉 → 平躺）
+  new THREE.MeshStandardMaterial({ color: 0x6aa8e0, transparent: true, opacity: 0.16,
+    roughness: 0.1, metalness: 0.0, side: THREE.DoubleSide, depthWrite: false })
+);
+slurryFilm.position.z = Z.PADT + 0.006;
+scene.add(slurryFilm);
+
+// ============================================================
+//  POLISHING HEAD (Modified with ribbed/ribbed details)
+// ============================================================
+const headGroup = new THREE.Group();
+const headSpinGroup = new THREE.Group();
+headGroup.add(headSpinGroup);
+scene.add(headGroup);
+headGroup.position.copy(P.HEAD_REST);
+
+// 統一的金屬材質，更符合工業機台
+const metalMatDark = new THREE.MeshStandardMaterial({ color: 0x2a3441, roughness: 0.35, metalness: 0.75 });
+const metalMat = new THREE.MeshStandardMaterial({ color: 0x6a7a8a, roughness: 0.3, metalness: 0.85 });
+const metalMatLight = new THREE.MeshStandardMaterial({ color: 0x8a98a8, roughness: 0.3, metalness: 0.8 });
+const rimMatCyan = new THREE.MeshStandardMaterial({ color: 0x00d4ff, roughness: 0.3, metalness: 0.6, emissive: 0x004466, emissiveIntensity: 0.5 });
+const rimMatAmber = new THREE.MeshStandardMaterial({ color: 0xffa028, roughness: 0.3, metalness: 0.6, emissive: 0x664400, emissiveIntensity: 0.5 });
+
+// Head 堆疊（相對 z，headGroup 底面 = pad 頂 0.56）對齊 Python 各段高度
+const matWafer = new THREE.MeshStandardMaterial({ color: 0x8ab0d8, roughness: 0.35, metalness: 0.40 });
+const matRing  = new THREE.MeshStandardMaterial({ color: 0xd2d2d2, roughness: 0.35, metalness: 0.60 });
+const matSilver= new THREE.MeshStandardMaterial({ color: 0xc0c0c0, roughness: 0.35, metalness: 0.62 });
+const matWhite = new THREE.MeshStandardMaterial({ color: 0xeeecea, roughness: 0.50, metalness: 0.20 });
+const matPostM = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, roughness: 0.30, metalness: 0.85 });
+
+// 晶圓（薄，貼 pad）
+const wafer = new THREE.Mesh(cylZ(0.46, 0.46, 0.012, 48), matWafer);
+wafer.position.z = 0.006;
+headSpinGroup.add(wafer);
+
+// 保持環（銀）0 → 0.20，外緣加 16 條溝槽 → 顯示自轉
+const ring = new THREE.Mesh(cylZ(0.56, 0.56, 0.20, 64), matRing);
+ring.position.z = 0.10;
+headSpinGroup.add(ring);
+for (let i = 0; i < 16; i++) {
+  const a = i/16 * Math.PI*2;
+  const slot = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.05, 0.17),
+    new THREE.MeshStandardMaterial({ color: 0x606060, roughness: 0.5, metalness: 0.4 }));
+  slot.position.set(Math.cos(a)*0.565, Math.sin(a)*0.565, 0.10);
+  slot.rotation.z = a;
+  headSpinGroup.add(slot);
+}
+
+// 小階 0.20 → 0.235
+const step1 = new THREE.Mesh(cylZ(0.56, 0.56, 0.035, 48), matSilver);
+step1.position.z = 0.2175;
+headSpinGroup.add(step1);
+
+// 白色主體 0.235 → 0.65
+const body = new THREE.Mesh(cylZ(0.50, 0.50, 0.415, 48), matWhite);
+body.position.z = 0.4425;
+headSpinGroup.add(body);
+
+// 小階 0.65 → 0.688
+const step2 = new THREE.Mesh(cylZ(0.40, 0.40, 0.038, 32), matSilver);
+step2.position.z = 0.669;
+headSpinGroup.add(step2);
+
+// 細長頂柱（高度 = P.POST_H，可調）
+const POST_BASE = 0.688;
+const post = new THREE.Mesh(cylZ(POSTR, POSTR, P.POST_H, 16), matPostM);
+post.position.z = POST_BASE + P.POST_H/2;
+headSpinGroup.add(post);
+const postBall = new THREE.Mesh(new THREE.SphereGeometry(POSTR*1.4, 16, 16), matPostM);
+postBall.position.z = POST_BASE + P.POST_H;
+headSpinGroup.add(postBall);
+
+// ============================================================
+//  CONDITIONER  —  高臂(z=1.08) + 垂直連桿下接調節盤(貼 pad)，對齊 Python
+// ============================================================
+const condMetal = new THREE.MeshStandardMaterial({ color: 0x8a98a8, roughness: 0.3, metalness: 0.8 });
+const condMetal2 = new THREE.MeshStandardMaterial({ color: 0x6a7a8a, roughness: 0.3, metalness: 0.85 });
+
+// 固定支點立柱 0.42 → 1.08
+const condPost = new THREE.Mesh(cylZ(POSTR*1.3, POSTR*1.6, P.ARM_Z - Z.PT, 20), condMetal2);
+condPost.position.set(P.PIVOT.x, P.PIVOT.y, (Z.PT + P.ARM_Z)/2);
+scene.add(condPost);
+const pivotBall = new THREE.Mesh(new THREE.SphereGeometry(ARMR*1.2, 20, 16), condMetal);
+pivotBall.position.set(P.PIVOT.x, P.PIVOT.y, P.ARM_Z);
+scene.add(pivotBall);
+
+// 方位旋轉群（在支點、臂高）
+const conditionerGroup = new THREE.Group();
+conditionerGroup.position.set(P.PIVOT.x, P.PIVOT.y, P.ARM_Z);
+scene.add(conditionerGroup);
+
+// 水平臂（會微傾使盤端到達 +dz）
+const armTiltGroup = new THREE.Group();
+conditionerGroup.add(armTiltGroup);
+const armTube = new THREE.Mesh(cylX(ARMR, ARMR, P.ARM_LEN, 16), condMetal);
+armTube.position.x = P.ARM_LEN/2;
+armTiltGroup.add(armTube);
+for (let i = 1; i <= 3; i++) {
+  const rib = new THREE.Mesh(cylZ(0.062, 0.062, 0.05, 12), condMetal2);
+  rib.position.x = P.ARM_LEN * (i/4);
+  armTiltGroup.add(rib);
+}
+const pivotJoint = new THREE.Mesh(new THREE.SphereGeometry(0.085, 20, 16), condMetal);
+armTiltGroup.add(pivotJoint);
+
+// 盤柱：臂端 (ARM_LEN,0)；隨 disk lift 整體升 dz；垂直連桿下接盤(貼 pad)
+const diskCol = new THREE.Group();
+diskCol.position.set(P.ARM_LEN, 0, 0);
+conditionerGroup.add(diskCol);
+const dropLen = P.ARM_Z - Z.DT;                        // 1.08 - 0.68 = 0.40
+const diskPost = new THREE.Mesh(cylZ(POSTR, POSTR, dropLen, 12), condMetal);
+diskPost.position.z = -dropLen/2;
+diskCol.add(diskPost);
+// 關節球：臂端與盤垂直連桿的接點（local z=0 = 臂高，對齊 Python add_sphere @ ARM_Z）
+const diskJoint = new THREE.Mesh(new THREE.SphereGeometry(ARMR*1.25, 18, 14), condMetal);
+diskCol.add(diskJoint);
+const diskMat = new THREE.MeshStandardMaterial({ color: 0x909090, roughness: 0.3, metalness: 0.72 });
+const condDisk = new THREE.Mesh(cylZ(0.27, 0.27, Z.DT - Z.DB, 32), diskMat);
+condDisk.position.z = -dropLen - (Z.DT - Z.DB)/2;     // 盤中心 world 0.62
+diskCol.add(condDisk);
+const diskRim = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.016, 8, 32), condMetal);
+diskRim.position.z = -dropLen;
+diskCol.add(diskRim);
+const diskBottom = new THREE.Mesh(cylZ(0.255, 0.255, 0.012, 32),
+  new THREE.MeshStandardMaterial({ color: 0x6a4a2a, roughness: 0.9, metalness: 0.1 }));
+diskBottom.position.z = -dropLen - (Z.DT - Z.DB) + 0.006;
+diskCol.add(diskBottom);
+// 盤面金剛石溝紋（讓自轉看得見）：8 條徑向溝 + 1 個不對稱標記
+const grvMat = new THREE.MeshStandardMaterial({ color: 0x2e2e2e, roughness: 0.75, metalness: 0.25 });
+for (let i = 0; i < 8; i++) {
+  const a = i / 8 * Math.PI * 2;
+  const gr = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.014, 0.012), grvMat);
+  gr.position.set(Math.cos(a) * 0.135, Math.sin(a) * 0.135, -dropLen + 0.006);
+  gr.rotation.z = a;
+  diskCol.add(gr);
+}
+const diskMark = new THREE.Mesh(cylZ(0.032, 0.032, 0.02, 12),
+  new THREE.MeshStandardMaterial({ color: 0xcc5522, roughness: 0.6, metalness: 0.3 }));
+diskMark.position.set(0.20, 0, -dropLen + 0.012);
+diskCol.add(diskMark);
+
+// ============================================================
+//  CROSS 半透明箱（head 靜止位置上方；對齊 Python add_cross_box）
+// ============================================================
+const crossBoxGeo = new THREE.BoxGeometry(CBOX.hx*2, CBOX.hy*2, CBOX.zt - CBOX.zb);
+const crossBox = new THREE.Mesh(crossBoxGeo,
+  new THREE.MeshStandardMaterial({ color: 0xaaccee, transparent: true, opacity: 0.22,
+    roughness: 0.2, metalness: 0.1, side: THREE.DoubleSide, depthWrite: false }));
+crossBox.position.set(CBOX.x, CBOX.y, (CBOX.zb + CBOX.zt)/2);
+scene.add(crossBox);
+const crossEdges = new THREE.LineSegments(new THREE.EdgesGeometry(crossBoxGeo),
+  new THREE.LineBasicMaterial({ color: 0x6a90b8, transparent: true, opacity: 0.5 }));
+crossEdges.position.copy(crossBox.position);
+scene.add(crossEdges);
+
+// ============================================================
+//  SLURRY 臂 + 噴嘴 + 落料（對齊 Python：低位平臂從左下到中心 SA2）
+// ============================================================
+const slurryMat = new THREE.MeshStandardMaterial({ color: 0xe8e6e0, roughness: 0.4, metalness: 0.2 });
+const nozzleMat = new THREE.MeshStandardMaterial({ color: 0x909090, roughness: 0.35, metalness: 0.7 });
+{
+  const dx = SA2[0]-SA1[0], dy = SA2[1]-SA1[1];
+  const len = Math.hypot(dx, dy);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(len, 0.18, SA_ZT - SA_ZB), slurryMat);
+  arm.position.set((SA1[0]+SA2[0])/2, (SA1[1]+SA2[1])/2, (SA_ZB + SA_ZT)/2);
+  arm.rotation.z = Math.atan2(dy, dx);
+  scene.add(arm);
+}
+const slurryPost = new THREE.Mesh(cylZ(0.055, 0.07, SA_ZB - Z.PT, 16), slurryMat);
+slurryPost.position.set(SA1[0], SA1[1], (Z.PT + SA_ZB)/2);
+scene.add(slurryPost);
+const nozzleTip = new THREE.Mesh(cylZ(0.022, 0.045, 0.16, 12), nozzleMat);
+nozzleTip.position.set(SA2[0], SA2[1], SA_ZB - 0.02);
+scene.add(nozzleTip);
+const nozzleGlow = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8),
+  new THREE.MeshStandardMaterial({ color: 0x88aaff, emissive: 0x4466cc, emissiveIntensity: 0.8 }));
+nozzleGlow.position.set(SA2[0], SA2[1], SA_ZB - 0.10);
+scene.add(nozzleGlow);
+
+// ── Slurry 落料 + 螺旋拖尾（確定性、t 的函式；對齊 Python get_slurry_particles）──
+const SLURRY_N = 48;
+const SL_R0 = 0.018, SL_GROW = 0.10, SL_TCYCLE = 1.3, SL_FALL = 0.22;
+const SL_OMEGA = 2 * Math.PI * 1.0;                 // = pad 自轉速
+const DROP_R = Math.hypot(SA2[0], SA2[1]);          // 落地半徑（= |SA2|）
+const DROP_TH = Math.atan2(SA2[1], SA2[0]);
+const particlePos = new Float32Array(SLURRY_N * 3);
+const particleSize = new Float32Array(SLURRY_N);
+const particleAlpha = new Float32Array(SLURRY_N);
+const particleDark = new Float32Array(SLURRY_N);    // 0=落料(灰藍) 1=拖尾(深藍)
+
+const particleGeo = new THREE.BufferGeometry();
+particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
+particleGeo.setAttribute('aSize', new THREE.BufferAttribute(particleSize, 1));
+particleGeo.setAttribute('aAlpha', new THREE.BufferAttribute(particleAlpha, 1));
+particleGeo.setAttribute('aDark', new THREE.BufferAttribute(particleDark, 1));
+
+const particleMat = new THREE.ShaderMaterial({
+  uniforms: { uPixel: { value: renderer.getPixelRatio() } },
+  vertexShader: `
+    attribute float aSize;
+    attribute float aAlpha;
+    attribute float aDark;
+    varying float vA;
+    varying float vDark;
+    uniform float uPixel;
+    void main(){
+      vA = aAlpha;
+      vDark = aDark;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = aSize * uPixel * 2200.0 / -mv.z;   // 世界半徑 → 像素
+      gl_Position = projectionMatrix * mv;
+    }
+  `,
+  fragmentShader: `
+    varying float vA;
+    varying float vDark;
+    void main(){
+      vec2 c = gl_PointCoord - vec2(0.5);
+      float d = length(c);
+      if (d > 0.5) discard;
+      float a = smoothstep(0.5, 0.18, d);
+      vec3 col = mix(vec3(0.60, 0.70, 0.82), vec3(0.07, 0.16, 0.55), vDark);  // 落料灰藍 → 拖尾深藍
+      gl_FragColor = vec4(col, a * vA);
+    }
+  `,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.NormalBlending,
+});
+const particles = new THREE.Points(particleGeo, particleMat);
+scene.add(particles);
+
+function updateSlurry(t) {
+  for (let i = 0; i < SLURRY_N; i++) {
+    const off = i / SLURRY_N;
+    const life = ((t / SL_TCYCLE) + off) % 1.0;
+    const jx = 0.04 * Math.sin(off * 12.9), jy = 0.04 * Math.cos(off * 7.7);
+    let px, py, pz, r, a;
+    if (life < SL_FALL) {                               // 落料：噴嘴 → pad
+      const fp = life / SL_FALL;
+      px = SA2[0] + jx * fp; py = SA2[1] + jy * fp;
+      pz = SA_ZB - fp * (SA_ZB - (Z.PADT + 0.005));
+      r = SL_R0; a = 0.75;
+    } else {                                            // 落地後沿半徑隨 pad 旋轉 → 螺旋拖尾，邊長大邊淡出
+      const sp = (life - SL_FALL) / (1 - SL_FALL);
+      const th = DROP_TH + sp * (1 - SL_FALL) * SL_TCYCLE * SL_OMEGA;
+      px = DROP_R * Math.cos(th) + jx; py = DROP_R * Math.sin(th) + jy;
+      pz = Z.PADT + 0.012;
+      r = SL_R0 + sp * SL_GROW; a = Math.max(0, 0.55 * (1 - sp));
+    }
+    particlePos[i*3] = px; particlePos[i*3+1] = py; particlePos[i*3+2] = pz;
+    particleSize[i] = r; particleAlpha[i] = a; particleDark[i] = (life < SL_FALL) ? 0 : 1;
+  }
+  particleGeo.attributes.position.needsUpdate = true;
+  particleGeo.attributes.aSize.needsUpdate = true;
+  particleGeo.attributes.aAlpha.needsUpdate = true;
+  particleGeo.attributes.aDark.needsUpdate = true;
+}
+updateSlurry(0);
+
+// （方向箭頭已移除 —— 原本嵌在 platen 側壁裡）
+function placeArrow() {}   // no-op（保留給 applyPadRadius 呼叫）
+
+// ============================================================
+//  FAKE SHADOWS
+// ============================================================
+function makeFakeShadow(radius, opacity = 0.28) {
+  const g = new THREE.CircleGeometry(radius, 32);
+  const m = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity, depthWrite: false });
+  const mesh = new THREE.Mesh(g, m);
+  mesh.position.z = Z.PADT + 0.003;          // CircleGeometry 本就在 XY 平面(Z-up 即水平)，不需旋轉
+  return mesh;
+}
+const headShadow = makeFakeShadow(0.62);
+scene.add(headShadow);
+const diskShadow = makeFakeShadow(0.36);
+scene.add(diskShadow);
+
+const condGlow = new THREE.Mesh(
+  new THREE.RingGeometry(0.22, 0.42, 32),
+  new THREE.MeshBasicMaterial({ color: 0xffa028, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })
+);
+condGlow.position.z = Z.PADT + 0.004;       // 平貼 pad（不旋轉）
+scene.add(condGlow);
+
+// ============================================================
+//  ANIMATION FUNCTIONS  —  完全對齊 cmp_insitu_mac.py
+// ============================================================
+// pulse 抬升提前到 t=3（移除 cond hold）；insitu 維持 t=4（不影響影片對齊）
+function liftStartFor(mode) { return mode === 'pulse' ? 4.3 : P.T_LIFT_START; }
+
+// head 掃動：到抬升前持續，抬升後維持中心（insitu L=4 與影片一致）
+function getHeadSweep(t, mode) {
+  const L = liftStartFor(mode);
+  const tt = Math.min(t, L);
+  return P.HEAD_SWEEP_AMP * Math.sin((tt / 4.0) * P.HEAD_SWEEPS * Math.PI * 2);
+}
+
+// head_dz = HEAD_LIFT * easeOutQuad，1 秒抬升；pulse 起點 3、insitu 起點 4
+function getHeadLift(t, mode) {
+  const L = liftStartFor(mode);
+  if (t < L) return 0;
+  if (t < L + 1.0) return P.HEAD_LIFT * easeOutQuad((t - L) / 1.0);
+  return P.HEAD_LIFT;
+}
+
+// 自轉 CW；抬升 1 秒間緩停、之後凍結（pulse 起點 3、insitu 起點 4）
+function getHeadSpin(t, mode) {
+  const W = 2 * Math.PI * P.HEAD_SPIN_RPS;   // +CCW：與 platen 同向（co-rotate）
+  const L = liftStartFor(mode);
+  if (t < L) return t * W;
+  if (t < L + 1.0) { const u = (t - L) / 1.0; return (L * W) + W * 0.5 * easeOutQuad(u); }
+  return (L * W) + W * 0.5;
+}
+
+// Python get_sweep_angle_insitu：相位用 t/DURATION(=t/6)、cos、ARM_SWEEPS_INSITU(=5)
+function getArmAngle(t, mode) {
+  const mid = (P.ARM_ANGLE_OUT + P.ARM_ANGLE_IN) / 2;
+  const amp = (P.ARM_ANGLE_OUT - P.ARM_ANGLE_IN) / 2;
+  if (mode === 'insitu') {
+    if (t < 4.0) {
+      const phase = (t / P.T_LIFT_START) * P.ARM_SWEEPS_INSITU * Math.PI * 2;   // 正規化到掃動窗(0-4s)→ 面板數字 = 實際趟數
+      return mid + amp * Math.cos(phase);
+    } else if (t < 5.0) {
+      const phaseEnd = P.ARM_SWEEPS_INSITU * Math.PI * 2;                       // = (4/4)·N·2π
+      const startA = mid + amp * Math.cos(phaseEnd);
+      const u = (t - 4.0) / 1.0;
+      return lerp(startA, P.ARM_ANGLE_OUT, easeOutQuad(u));
+    } else {
+      const u = (t - 5.0) / 1.0;
+      return lerp(P.ARM_ANGLE_OUT, P.ARM_ANGLE_PARK, easeOutQuad(u));
+    }
+  } else {
+    // pulse：掃動 0-2、盤抬升+jitter 2-3.5（頭持續 sweeping、不抬升）、收臂 3.5-6
+    if (t < P.PULSE_SWEEP_END) {
+      const phase = (t / P.PULSE_SWEEP_END) * P.PULSE_SWEEPS * Math.PI * 2;
+      return mid + amp * Math.cos(phase);
+    } else if (t < 3.5) {
+      return P.ARM_ANGLE_OUT;
+    } else {
+      const u = (t - 3.5) / 2.5;            // 3.5→6s：OUT → PARK
+      return lerp(P.ARM_ANGLE_OUT, P.ARM_ANGLE_PARK, easeOutQuad(u));
+    }
+  }
+}
+
+// Python get_head_state：disk_lift = 0.6·HEAD_LIFT·easeOutQuad；抖動只在 u>0.6 段、振幅 0.04、3 次
+function getDiskLift(t, mode) {
+  const maxLift = 0.6 * P.HEAD_LIFT;
+  if (mode === 'insitu') {
+    if (t < 4.0) return 0;
+    if (t < 5.0) {
+      const u = (t - 4.0) / 1.0;
+      const base = maxLift * easeOutQuad(u);
+      let jitter = 0;
+      if (u > 0.6) jitter = 0.04 * Math.sin(((u - 0.6) / 0.4) * 3 * Math.PI * 2);
+      return base + jitter;
+    }
+    return maxLift;
+  } else {
+    // partial in-situ：先平滑升到頂(無抖動)，升程完成後才抖動(settling 沉降)
+    const a = P.PULSE_DISK_LIFT_START, b = P.PULSE_DISK_LIFT_END;
+    const liftDur = (b - a) * 0.6;                 // 前 60% 上升、後 40% 才抖動
+    if (t < a) return 0;
+    if (t < a + liftDur) return maxLift * easeOutQuad((t - a) / liftDur);
+    if (t < b) {
+      const v = (t - (a + liftDur)) / (b - (a + liftDur));   // 0..1
+      return maxLift + 0.03 * Math.sin(v * Math.PI * 8) * (1 - v);
+    }
+    return maxLift;
+  }
+}
+
+// 盤自轉：條件期全速、抬升期間緩停（rate W·(1-u)），之後凍結
+function getDiskSpin(t, mode) {
+  const W = 2 * Math.PI * DISK_RPS;
+  let a, b;
+  if (mode === 'insitu') { a = P.T_LIFT_START; b = P.T_RETRACT_START; }   // 4..5
+  else { a = P.PULSE_DISK_LIFT_START; b = P.PULSE_DISK_LIFT_END; }         // 2..3.5
+  if (t < a) return t * W;
+  if (t < b) { const u = (t - a) / (b - a); return a * W + W * 0.5 * (b - a) * easeOutQuad(u); }
+  return a * W + W * 0.5 * (b - a);
+}
+
+function getPhase(t, mode) {
+  if (mode === 'insitu') {
+    if (t < 4.0) return { name: 'SWEEP + CONDITION', idx: 0 };
+    if (t < 5.0) return { name: 'HEAD LIFT + DISK LIFT', idx: 1 };
+    return { name: 'CONDITIONER RETRACT', idx: 2 };
+  } else {
+    if (t < 2.0) return { name: 'COND. SWEEP', idx: 0 };
+    if (t < 3.5) return { name: 'DISK LIFT + JITTER', idx: 1 };
+    if (t < 4.3) return { name: 'COND. RETRACT (HEAD POLISHING)', idx: 2 };
+    if (t < 5.3) return { name: 'HEAD LIFT', idx: 3 };
+    return { name: 'COMPLETE', idx: 4 };
+  }
+}
+
+// ============================================================
+//  SCENE UPDATE
+// ============================================================
+let currentMode = 'insitu';
+let currentTime = 0;
+let isPlaying = true;
+let playSpeed = 1.0;
+let isLooping = true;
+
+function updateScene(t, mode) {
+  padGroup.rotation.z = t * P.PAD_SPIN;          // pad 1 rev/s（對齊影片）
+  updateSlurry(t);                               // slurry 落料 + 螺旋拖尾（隨 t 確定性）
+  const filmR = 0.2 + Math.min(t / 3.5, 1) * (P.PR - 0.2);  // 薄膜由中心(0.2)向外擴張到 pad 最外緣(PR)
+  slurryFilm.scale.set(filmR, filmR, 1);
+
+  const sweepX = getHeadSweep(t, mode);
+  const liftZ = getHeadLift(t, mode);
+  headGroup.position.set(
+    P.HEAD_REST.x + P.SWEEP_DIR * sweepX,         // 掃動方向可調
+    P.HEAD_REST.y,
+    Z.PADT + liftZ                                // 座底貼 pad 頂(0.56) + 抬升
+  );
+
+  headSpinGroup.rotation.z = getHeadSpin(t, mode);
+
+  const armAngle = getArmAngle(t, mode);                       // 掃動角（HUD 顯示用 -10°…+90°）
+  const condRot = P.PIVOT_ANGLE_BASE + armAngle + Math.PI;     // 幾何旋轉（對齊 Python get_disk_pos）
+  conditionerGroup.rotation.z = condRot;
+
+  const diskDz = getDiskLift(t, mode);
+  // pivot-hinge：臂端上傾到 +dz（水平距離維持 ARM_LEN），盤柱整體升 dz（對齊 Python）
+  const tiltAngle = Math.atan2(diskDz, P.ARM_LEN);
+  armTiltGroup.rotation.y = -tiltAngle;
+  armTiltGroup.scale.x = 1 / Math.cos(tiltAngle);
+  diskCol.position.z = diskDz;
+  diskCol.rotation.z = getDiskSpin(t, mode);         // 盤自轉（抬升時緩停）
+
+  headShadow.position.set(headGroup.position.x, headGroup.position.y, Z.PADT + 0.003);
+  headShadow.material.opacity = 0.30 * (1 - 0.6 * (liftZ / P.HEAD_LIFT));
+
+  const diskWX = P.PIVOT.x + P.ARM_LEN * Math.cos(condRot);
+  const diskWY = P.PIVOT.y + P.ARM_LEN * Math.sin(condRot);
+  const diskWZ = P.ARM_Z + diskDz;
+
+  diskShadow.position.set(diskWX, diskWY, Z.PADT + 0.003);
+  const maxDiskLift = 0.6 * P.HEAD_LIFT;
+  diskShadow.material.opacity = 0.28 * (1 - 0.6 * (diskDz / maxDiskLift));
+
+  condGlow.position.set(diskWX, diskWY, Z.PADT + 0.004);
+  const isConditioning = diskDz < 0.005 && (
+    (mode === 'insitu' && t < 4.0) ||
+    (mode === 'pulse' && t < 2.0)
+  );
+  const targetGlow = isConditioning ? (0.25 + 0.12 * Math.sin(t * 14)) : 0;
+  condGlow.material.opacity += (targetGlow - condGlow.material.opacity) * 0.15;
+
+  const phase = getPhase(t, mode);
+  document.getElementById('hud-time').textContent = t.toFixed(3) + ' s';
+  document.getElementById('hud-frame').textContent = Math.round(t * P.FPS) + ' / ' + P.N_FRAMES;
+  document.getElementById('hud-phase').textContent = phase.name;
+  document.getElementById('hud-sweep').textContent = (sweepX >= 0 ? '+' : '') + sweepX.toFixed(3);
+  document.getElementById('hud-lift').textContent = liftZ.toFixed(3);
+  document.getElementById('hud-arm').textContent = (armAngle * 180 / Math.PI).toFixed(1) + '°';
+  document.getElementById('hud-disk').textContent = diskDz.toFixed(3);
+
+  document.getElementById('bar-sweep').style.width = ((sweepX / P.HEAD_SWEEP_AMP) * 0.5 + 0.5) * 100 + '%';
+  document.getElementById('bar-lift').style.width = (liftZ / P.HEAD_LIFT) * 100 + '%';
+  document.getElementById('bar-arm').style.width = ((armAngle - P.ARM_ANGLE_IN) / (P.ARM_ANGLE_PARK - P.ARM_ANGLE_IN)) * 100 + '%';
+  document.getElementById('bar-disk').style.width = (diskDz / maxDiskLift) * 100 + '%';
+
+  document.getElementById('timeline-cursor').style.left = (t / P.DURATION * 100) + '%';
+  document.getElementById('time-readout').innerHTML = t.toFixed(3) + ' <span>/ 6.000 s</span>';
+
+  document.querySelectorAll('.timeline-phase').forEach((el, i) => {
+    el.style.opacity = (i === phase.idx) ? '1' : '0.45';
+  });
+}
+
+// ============================================================
+//  TIMELINE PHASE SEGMENTS
+// ============================================================
+function buildTimeline(mode) {
+  const track = document.getElementById('timeline-track');
+  track.querySelectorAll('.timeline-phase').forEach(el => el.remove());
+
+  let phases;
+  if (mode === 'insitu') {
+    phases = [
+      { start: 0, end: 4, label: 'Sweep + Condition', cls: 'phase-cyan' },
+      { start: 4, end: 5, label: 'Head Lift + Disk Lift', cls: 'phase-blue' },
+      { start: 5, end: 6, label: 'Conditioner Retract', cls: 'phase-purple' },
+    ];
+  } else {
+    phases = [
+      { start: 0, end: 2, label: 'Cond. Sweep', cls: 'phase-amber' },
+      { start: 2, end: 3.5, label: 'Disk Lift + Jitter', cls: 'phase-orange' },
+      { start: 3.5, end: 4.3, label: 'Cond. Retract', cls: 'phase-yellow' },
+      { start: 4.3, end: 5.3, label: 'Head Lift', cls: 'phase-red' },
+      { start: 5.3, end: 6, label: 'Complete', cls: 'phase-darkred' },
+    ];
+  }
+  phases.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'timeline-phase ' + p.cls;
+    el.style.left = (p.start / 6 * 100) + '%';
+    el.style.width = ((p.end - p.start) / 6 * 100) + '%';
+    el.textContent = p.label;
+    track.insertBefore(el, document.getElementById('timeline-cursor'));
+  });
+}
+
+const ticksContainer = document.getElementById('timeline-ticks');
+for (let i = 0; i < 24; i++) {
+  const tick = document.createElement('div');
+  tick.className = 'timeline-tick';
+  ticksContainer.appendChild(tick);
+}
+
+buildTimeline('insitu');
+
+// ============================================================
+//  AXIS GIZMO
+// ============================================================
+const gizmoCanvas = document.getElementById('axis-gizmo');
+const gizmoCtx = gizmoCanvas.getContext('2d');
+
+function drawGizmo() {
+  const w = gizmoCanvas.width, h = gizmoCanvas.height;
+  gizmoCtx.clearRect(0, 0, w, h);
+  const cx = w/2, cy = h/2;
+
+  const camDir = new THREE.Vector3();
+  camera.getWorldDirection(camDir);
+  const camRight = new THREE.Vector3().crossVectors(camDir, new THREE.Vector3(0,0,1)).normalize();
+  const camUp = new THREE.Vector3().crossVectors(camRight, camDir).normalize();
+
+  function project(axis) {
+    const x = cx + axis.dot(camRight) * 50;
+    const y = cy - axis.dot(camUp) * 50;
+    return { x, y };
+  }
+
+  const axes = [
+    { dir: new THREE.Vector3(1,0,0), color: '#ff3860', label: 'X' },
+    { dir: new THREE.Vector3(0,1,0), color: '#00ff88', label: 'Y' },
+    { dir: new THREE.Vector3(0,0,1), color: '#00d4ff', label: 'Z' },
+  ];
+
+  axes.forEach(a => {
+    const p = project(a.dir.clone().negate());
+    gizmoCtx.strokeStyle = a.color + '44';
+    gizmoCtx.lineWidth = 1.5;
+    gizmoCtx.setLineDash([3, 3]);
+    gizmoCtx.beginPath();
+    gizmoCtx.moveTo(cx, cy);
+    gizmoCtx.lineTo(p.x, p.y);
+    gizmoCtx.stroke();
+  });
+  gizmoCtx.setLineDash([]);
+
+  axes.forEach(a => {
+    const p = project(a.dir);
+    gizmoCtx.strokeStyle = a.color;
+    gizmoCtx.lineWidth = 2.5;
+    gizmoCtx.beginPath();
+    gizmoCtx.moveTo(cx, cy);
+    gizmoCtx.lineTo(p.x, p.y);
+    gizmoCtx.stroke();
+
+    gizmoCtx.fillStyle = a.color;
+    gizmoCtx.beginPath();
+    gizmoCtx.arc(p.x, p.y, 4, 0, Math.PI*2);
+    gizmoCtx.fill();
+
+    gizmoCtx.fillStyle = '#fff';
+    gizmoCtx.font = 'bold 11px JetBrains Mono';
+    gizmoCtx.textAlign = 'center';
+    gizmoCtx.textBaseline = 'middle';
+    const lx = p.x + (p.x - cx) * 0.18;
+    const ly = p.y + (p.y - cy) * 0.18;
+    gizmoCtx.fillText(a.label, lx, ly);
+  });
+
+  gizmoCtx.fillStyle = '#e8eef5';
+  gizmoCtx.beginPath();
+  gizmoCtx.arc(cx, cy, 3, 0, Math.PI*2);
+  gizmoCtx.fill();
+}
+
+// ============================================================
+//  EVENT HANDLERS
+// ============================================================
+function showToast(msg, amber = false) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast show' + (amber ? ' amber' : '');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = btn.dataset.mode;
+    currentTime = 0;
+    isPlaying = true;
+    buildTimeline(currentMode);
+    updatePlayButton();
+
+    const hudMode = document.getElementById('hud-mode');
+    const hudPhase = document.getElementById('hud-phase');
+    const playBtn = document.getElementById('play-btn');
+    const loopBtn = document.getElementById('loop-btn');
+
+    if (currentMode === 'insitu') {
+      hudMode.classList.remove('amber'); hudMode.classList.add('cyan');
+      hudMode.textContent = 'IN-SITU';
+      hudPhase.classList.remove('pulse');
+      playBtn.classList.remove('pulse-mode');
+      loopBtn.classList.remove('pulse-mode');
+    } else {
+      hudMode.classList.remove('cyan'); hudMode.classList.add('amber');
+      hudMode.textContent = 'PARTIAL IN-SITU';
+      hudPhase.classList.add('pulse');
+      playBtn.classList.add('pulse-mode');
+      loopBtn.classList.add('pulse-mode');
+    }
+
+    document.querySelectorAll('.telemetry-fill').forEach(b => {
+      b.classList.toggle('amber', currentMode === 'pulse');
+    });
+
+    showToast('MODE: ' + (currentMode === 'insitu' ? 'IN-SITU CONDITIONING' : 'PARTIAL IN-SITU CONDITIONING'), currentMode === 'pulse');
+  });
+});
+
+function updatePlayButton() {
+  const icon = document.getElementById('play-icon');
+  if (isPlaying) {
+    icon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+  } else {
+    icon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+  }
+}
+document.getElementById('play-btn').addEventListener('click', () => {
+  isPlaying = !isPlaying;
+  if (isPlaying && currentTime >= P.DURATION) currentTime = 0;
+  updatePlayButton();
+});
+
+document.getElementById('restart-btn').addEventListener('click', () => {
+  currentTime = 0;
+  isPlaying = true;
+  updatePlayButton();
+});
+
+document.getElementById('prev-frame-btn').addEventListener('click', () => {
+  isPlaying = false;
+  updatePlayButton();
+  currentTime = Math.max(0, currentTime - 1/P.FPS);
+});
+document.getElementById('next-frame-btn').addEventListener('click', () => {
+  isPlaying = false;
+  updatePlayButton();
+  currentTime = Math.min(P.DURATION, currentTime + 1/P.FPS);
+});
+
+document.querySelectorAll('.speed-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    playSpeed = parseFloat(btn.dataset.speed);
+  });
+});
+
+document.getElementById('loop-btn').addEventListener('click', (e) => {
+  isLooping = !isLooping;
+  e.currentTarget.classList.toggle('active', isLooping);
+  showToast('LOOP ' + (isLooping ? 'ON' : 'OFF'));
+});
+
+document.getElementById('camera-btn').addEventListener('click', () => {
+  const t0 = performance.now();
+  const dur = 600;
+  const startAz = camParams.azimuth;
+  const startEl = camParams.elevation;
+  const startDist = camParams.distance;
+
+  function step() {
+    const t = Math.min(1, (performance.now() - t0) / dur);
+    const e = easeInOutCubic(t);
+    camParams.azimuth = lerp(startAz, initAz, e);
+    camParams.elevation = lerp(startEl, initEl, e);
+    camParams.distance = lerp(startDist, initD, e);
+
+    slAz.value = camParams.azimuth;
+    slEl.value = camParams.elevation;
+    slDist.value = camParams.distance;
+    valAz.textContent = camParams.azimuth.toFixed(1) + '°';
+    valEl.textContent = camParams.elevation.toFixed(1) + '°';
+    valDist.textContent = camParams.distance.toFixed(2);
+
+    updateCameraFromParams();
+    if (t < 1) requestAnimationFrame(step);
+  }
+  step();
+  showToast('CAMERA RESET');
+});
+
+document.getElementById('snapshot-btn').addEventListener('click', () => {
+  renderer.render(scene, camera);
+  const link = document.createElement('a');
+  const frame = Math.round(currentTime * P.FPS);
+  link.download = `cmp_${currentMode}_f${frame}_t${currentTime.toFixed(2)}s.png`;
+  link.href = renderer.domElement.toDataURL('image/png');
+  link.click();
+  showToast(`SNAPSHOT SAVED · f${frame}`, currentMode === 'pulse');
+});
+
+const timelineTrack = document.getElementById('timeline-track');
+let isScrubbing = false;
+function scrub(e) {
+  const rect = timelineTrack.getBoundingClientRect();
+  const x = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+  currentTime = x * P.DURATION;
+}
+timelineTrack.addEventListener('mousedown', (e) => {
+  isScrubbing = true;
+  isPlaying = false;
+  updatePlayButton();
+  scrub(e);
+});
+window.addEventListener('mousemove', (e) => { if (isScrubbing) scrub(e); });
+window.addEventListener('mouseup', () => { isScrubbing = false; });
+
+function onResize() {
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+window.addEventListener('resize', onResize);
+new ResizeObserver(onResize).observe(container);
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); document.getElementById('play-btn').click(); }
+  if (e.code === 'KeyR') document.getElementById('restart-btn').click();
+  if (e.code === 'ArrowLeft') document.getElementById('prev-frame-btn').click();
+  if (e.code === 'ArrowRight') document.getElementById('next-frame-btn').click();
+  if (e.code === 'KeyL') document.getElementById('loop-btn').click();
+  if (e.code === 'Digit1') document.querySelector('.mode-btn[data-mode="insitu"]').click();
+  if (e.code === 'Digit2') document.querySelector('.mode-btn[data-mode="pulse"]').click();
+  if (e.code === 'KeyS') document.getElementById('snapshot-btn').click();
+});
+
+// ============================================================
+//  CONFIGURATION 面板 — 即時調參
+// ============================================================
+const cfgGet = id => document.getElementById(id);
+const cfgRefresh = () => { updateScene(currentTime, currentMode); renderer.render(scene, camera); };
+
+function applyPostHeight(h) {                          // 幾何：重建頭柱
+  P.POST_H = h;
+  post.geometry.dispose();
+  post.geometry = cylZ(POSTR, POSTR, h, 16);
+  post.position.z = POST_BASE + h / 2;
+  postBall.position.z = POST_BASE + h;
+  cfgRefresh();
+}
+function applyPadRadius(pr) {                          // 幾何：縮放 pad + 移動調節器/箭頭
+  P.PR = pr;
+  padGroup.scale.set(pr / 2.2, pr / 2.2, 1);          // pad/底座/邊緣以 2.2 建，等比縮放
+  const rr = pr + 0.32;
+  P.PIVOT.x = rr * Math.cos(P.PIVOT_ANGLE_BASE);
+  P.PIVOT.y = rr * Math.sin(P.PIVOT_ANGLE_BASE);
+  condPost.position.set(P.PIVOT.x, P.PIVOT.y, (Z.PT + P.ARM_Z) / 2);
+  pivotBall.position.set(P.PIVOT.x, P.PIVOT.y, P.ARM_Z);
+  conditionerGroup.position.set(P.PIVOT.x, P.PIVOT.y, P.ARM_Z);
+  placeArrow();
+  cfgRefresh();
+}
+
+cfgGet('cfg-pr').addEventListener('input', e => applyPadRadius(parseFloat(e.target.value) || 1.5));
+cfgGet('cfg-post').addEventListener('input', e => applyPostHeight(parseFloat(e.target.value) || 0.1));
+cfgGet('cfg-hsw').addEventListener('input', e => { P.HEAD_SWEEPS = parseFloat(e.target.value) || 0; cfgRefresh(); });
+cfgGet('cfg-amp').addEventListener('input', e => { P.HEAD_SWEEP_AMP = parseFloat(e.target.value) || 0; cfgRefresh(); });
+cfgGet('cfg-dir').addEventListener('change', e => { P.SWEEP_DIR = parseFloat(e.target.value); cfgRefresh(); });
+cfgGet('cfg-lift').addEventListener('input', e => { P.HEAD_LIFT = parseFloat(e.target.value) || 0; cfgRefresh(); });
+cfgGet('cfg-asi').addEventListener('input', e => { P.ARM_SWEEPS_INSITU = parseFloat(e.target.value) || 0; cfgRefresh(); });
+cfgGet('cfg-asp').addEventListener('input', e => { P.PULSE_SWEEPS = parseFloat(e.target.value) || 0; cfgRefresh(); });
+cfgGet('cfg-out').addEventListener('input', e => { P.ARM_ANGLE_OUT = (parseFloat(e.target.value) || 0) * Math.PI / 180; cfgRefresh(); });
+cfgGet('cfg-park').addEventListener('input', e => { P.ARM_ANGLE_PARK = (parseFloat(e.target.value) || 0) * Math.PI / 180; cfgRefresh(); });
+
+const CFG_DEFAULTS = { 'cfg-pr':'2.20','cfg-hsw':'4','cfg-amp':'0.30','cfg-dir':'1','cfg-lift':'0.33','cfg-post':'0.48','cfg-asi':'5','cfg-asp':'2','cfg-out':'50','cfg-park':'90' };
+cfgGet('cfg-reset').addEventListener('click', () => {
+  for (const [id, v] of Object.entries(CFG_DEFAULTS)) {
+    const el = cfgGet(id); el.value = v;
+    el.dispatchEvent(new Event(id === 'cfg-dir' ? 'change' : 'input'));
+  }
+  showToast('CONFIG RESET');
+});
+
+// ============================================================
+//  ANIMATION LOOP
+// ============================================================
+let lastTime = performance.now();
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  const dt = Math.min(0.1, (now - lastTime) / 1000);
+  lastTime = now;
+
+  if (isPlaying) {
+    currentTime += dt * playSpeed;
+    if (currentTime >= P.DURATION) {
+      if (isLooping) {
+        currentTime = currentTime % P.DURATION;
+      } else {
+        currentTime = P.DURATION;
+        isPlaying = false;
+        updatePlayButton();
+      }
+    }
+  }
+
+  updateScene(currentTime, currentMode);
+  controls.update();
+  drawGizmo();
+  renderer.render(scene, camera);
+}
+
+updateScene(0, 'insitu');
+animate();
+
+// ── 離線比對用的測試鉤子（不影響一般觀看）──
+window.__cmp = {
+  renderFrame(frameIdx, mode) {
+    isPlaying = false;
+    currentMode = mode || currentMode;
+    currentTime = frameIdx / P.FPS;
+    // 釘住相機（影片相機固定），確保每幀一致
+    camera.position.copy(P.CAM_POS);
+    camera.up.set(0, 0, 1);
+    controls.target.copy(P.CAM_TARGET);
+    camera.lookAt(P.CAM_TARGET);
+    updateScene(currentTime, currentMode);
+    renderer.render(scene, camera);
+  },
+  setCanvasSize(w, h) {
+    container.style.width = w + 'px';
+    container.style.height = h + 'px';
+    container.style.overflow = 'visible';
+    controls.enableDamping = false;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setPixelRatio(1);
+    renderer.setSize(w, h);
+  },
+  whiteBg() { scene.background = new THREE.Color(0xffffff); },   // 比對用：純白背景（同影片）
+};
+
+setTimeout(() => showToast('READY · IN-SITU MODE · PRESS SPACE TO PLAY'), 300);
+
+</script>
+</body>
+</html>
